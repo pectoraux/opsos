@@ -44,6 +44,7 @@ import {
   Zap,
   ArrowLeftRight,
   MapPin,
+  BookOpen,
 } from "lucide-react";
 import type { KernelDemoResult } from "@/lib/kernel-demo";
 
@@ -58,6 +59,7 @@ type TabId =
   | "registries"
   | "exchange"
   | "resources"
+  | "knowledge"
   | "observability"
   | "architecture";
 
@@ -96,6 +98,7 @@ function layerColor(layer: string): string {
     case "Control": return "bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border-indigo-500/20";
     case "Coordination": return "bg-lime-500/10 text-lime-700 dark:text-lime-400 border-lime-500/20";
     case "Resource": return "bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 border-cyan-500/20";
+    case "Knowledge": return "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20";
     default: return "bg-muted text-muted-foreground border-border";
   }
 }
@@ -739,6 +742,121 @@ function ResourcesTab({ demo }: { demo: KernelDemoResult }) {
   );
 }
 
+function KnowledgeTab({ demo }: { demo: KernelDemoResult }) {
+  const kk = demo.knowledgeKernel;
+  return (
+    <div className="space-y-3">
+      {/* Query result */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <BookOpen className="size-4" /> Knowledge Explorer
+          </CardTitle>
+          <CardDescription>
+            Universal operational knowledge — SOPs, regulations, standards, facts, procedures.
+            Protocols register knowledge; the kernel owns storage, versioning, provenance,
+            confidence, and applicability (ADR-0017).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {/* The query */}
+          <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
+            <div className="text-xs font-medium text-muted-foreground mb-2">
+              lookup(subjectKind: <span className="font-mono text-foreground">{kk.query.subjectKind}</span>, subjectId: <span className="font-mono text-foreground">{kk.query.subjectId}</span>)
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+              <div className="rounded-md border p-2">
+                <div className="text-[10px] text-muted-foreground">items</div>
+                <div className="font-mono text-lg tabular-nums">{kk.query.matchedItems}</div>
+              </div>
+              <div className="rounded-md border p-2">
+                <div className="text-[10px] text-muted-foreground">procedures</div>
+                <div className="font-mono text-lg tabular-nums">{kk.query.matchedProcedures}</div>
+              </div>
+              <div className="rounded-md border p-2">
+                <div className="text-[10px] text-muted-foreground">regulations</div>
+                <div className="font-mono text-lg tabular-nums">{kk.query.matchedRegulations}</div>
+              </div>
+              <div className="rounded-md border p-2">
+                <div className="text-[10px] text-muted-foreground">facts</div>
+                <div className="font-mono text-lg tabular-nums">{kk.query.matchedFacts}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Compliance */}
+          <div className={`rounded-lg border p-3 ${kk.query.complianceCompliant ? "border-emerald-500/30 bg-emerald-500/5" : "border-destructive/30 bg-destructive/5"}`}>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className={kk.query.complianceCompliant ? "border-emerald-500/40 text-emerald-700 dark:text-emerald-400" : "border-destructive/40 text-destructive"}>
+                {kk.query.complianceCompliant ? "COMPLIANT" : "NON-COMPLIANT"}
+              </Badge>
+              <span className="text-xs text-muted-foreground">
+                {kk.query.complianceViolations} violation(s) found
+              </span>
+            </div>
+          </div>
+
+          {/* Registered knowledge items */}
+          <div className="space-y-1.5">
+            <div className="text-xs font-medium text-muted-foreground">Registered knowledge items ({kk.items.length})</div>
+            {kk.items.map((ki) => (
+              <div key={ki.id} className="rounded-lg border p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className={`text-[9px] font-mono ${
+                      ki.kind === "procedure" ? "border-blue-500/30 text-blue-700 dark:text-blue-400" :
+                      ki.kind === "regulation" ? "border-red-500/30 text-red-700 dark:text-red-400" :
+                      ki.kind === "fact" ? "border-emerald-500/30 text-emerald-700 dark:text-emerald-400" :
+                      "text-muted-foreground"
+                    }`}>{ki.kind}</Badge>
+                    <span className="text-sm font-medium">{ki.title}</span>
+                  </div>
+                  <Badge variant="outline" className={`text-[9px] ${ki.status === "active" ? "border-emerald-500/30 text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"}`}>
+                    {ki.status}
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                  <span>confidence: <span className="font-mono tabular-nums">{(ki.confidence * 100).toFixed(0)}%</span></span>
+                  <span>evidence: <span className="font-mono tabular-nums">{ki.evidenceCount}</span></span>
+                  <span>version: <span className="font-mono tabular-nums">{ki.version}</span></span>
+                  {ki.ownerProtocolId && <span>owner: <span className="font-mono">{ki.ownerProtocolId}</span></span>}
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {ki.tags.map((t) => (
+                    <Badge key={t} variant="secondary" className="text-[9px] font-mono">{t}</Badge>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Registry summary */}
+          <div className="rounded-lg border border-muted p-3">
+            <div className="text-xs font-medium text-muted-foreground mb-2">Registries (14)</div>
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                "source", "evidence", "knowledge", "fact", "procedure",
+                "standard", "regulation", "guideline", "ontology",
+                "taxonomy", "vocabulary", "measurement", "hypothesis",
+                "query-engine",
+              ].map((r) => (
+                <Badge key={r} variant="outline" className="text-[9px] font-mono border-amber-500/20 text-amber-700 dark:text-amber-400">
+                  {r}
+                </Badge>
+              ))}
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-2">
+              The compiler asks "what procedures apply?" The coordination kernel asks "find resources
+              certified for SOP-32, compliant with Regulation-9." Digital twins become intelligent:
+              twin → knowledge → recommendations → predictions.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 function ObservabilityTab({ demo }: { demo: KernelDemoResult }) {
   const obs = demo.platformSnapshot?.observability;
   return (
@@ -850,6 +968,7 @@ const TABS: readonly TabDef[] = [
   { id: "registries", label: "Registries", icon: Boxes },
   { id: "exchange", label: "Exchange", icon: ArrowLeftRight },
   { id: "resources", label: "Resources", icon: MapPin },
+  { id: "knowledge", label: "Knowledge", icon: BookOpen },
   { id: "observability", label: "Observability", icon: Activity },
   { id: "architecture", label: "Architecture", icon: Grid3x3 },
 ];
@@ -916,6 +1035,7 @@ export function ControlPlaneClient({ demo }: { demo: KernelDemoResult }) {
         {activeTab === "registries" && <RegistriesTab demo={demo} />}
         {activeTab === "exchange" && <ExchangeTab demo={demo} />}
         {activeTab === "resources" && <ResourcesTab demo={demo} />}
+        {activeTab === "knowledge" && <KnowledgeTab demo={demo} />}
         {activeTab === "observability" && <ObservabilityTab demo={demo} />}
         {activeTab === "architecture" && <ArchitectureTab demo={demo} />}
       </main>

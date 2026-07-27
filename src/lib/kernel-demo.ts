@@ -97,6 +97,15 @@ import {
   FindCapableResourcesUseCase,
 } from "@kernel/resource-kernel";
 import type { CapableResource } from "@kernel/resource-kernel";
+import {
+  createInMemoryKnowledgeKernel,
+} from "@kernel/knowledge-kernel";
+import type {
+  KnowledgeItem,
+  Procedure,
+  Regulation,
+  Fact,
+} from "@kernel/shared-kernel";
 
 // ── Static catalogs (mirror docs/) ──────────────────────────────────────────
 
@@ -125,6 +134,7 @@ export const KERNEL_MODULES: readonly ModuleInfo[] = [
   { name: "control-plane", layer: "Control", dependsOn: "@kernel/api/v1", description: "Platform Control Plane: read-only admin surface. Aggregates a PlatformSnapshot from all registries (ADR-0014)." },
   { name: "coordination", layer: "Coordination", dependsOn: "shared-kernel", description: "Coordination Kernel: matching/negotiation/reservation/commitment/assignment/queue/transfer/escalation engines. Marketplace is one strategy (ADR-0015)." },
   { name: "resource-kernel", layer: "Resource", dependsOn: "shared-kernel", description: "Resource Kernel: universal resource concepts — state, availability, capacity, location, calendar, skills, twin, maintenance, quality. Coordination queries it (ADR-0016)." },
+  { name: "knowledge-kernel", layer: "Knowledge", dependsOn: "shared-kernel", description: "Knowledge Kernel: universal operational knowledge — SOPs, regulations, standards, facts, procedures, ontologies. Protocols register, kernel owns (ADR-0017)." },
   { name: "api/v1", layer: "Surface", dependsOn: "all modules (facade)", description: "Frozen versioned public API (ADR-0009). Everything outside the kernel imports from here." },
 ];
 
@@ -356,6 +366,34 @@ export interface DemoResourceKernel {
   readonly queryCapabilityType: string;
 }
 
+export interface DemoKnowledgeItem {
+  readonly id: string;
+  readonly kind: string;
+  readonly title: string;
+  readonly version: number;
+  readonly status: string;
+  readonly confidence: number;
+  readonly tags: readonly string[];
+  readonly evidenceCount: number;
+  readonly ownerProtocolId?: string;
+}
+
+export interface DemoKnowledgeQuery {
+  readonly subjectKind: string;
+  readonly subjectId: string;
+  readonly matchedItems: number;
+  readonly matchedProcedures: number;
+  readonly matchedRegulations: number;
+  readonly matchedFacts: number;
+  readonly complianceCompliant: boolean;
+  readonly complianceViolations: number;
+}
+
+export interface DemoKnowledgeKernel {
+  readonly items: readonly DemoKnowledgeItem[];
+  readonly query: DemoKnowledgeQuery;
+}
+
 export interface KernelDemoResult {
   readonly seed: number;
   readonly baseTime: number;
@@ -370,6 +408,7 @@ export interface KernelDemoResult {
   readonly platformSnapshot: DemoPlatformSnapshot;
   readonly coordination: DemoCoordination;
   readonly resourceKernel: DemoResourceKernel;
+  readonly knowledgeKernel: DemoKnowledgeKernel;
   readonly modules: readonly ModuleInfo[];
   readonly primitives: readonly PrimitiveInfo[];
 }
@@ -1029,6 +1068,156 @@ export async function runKernelDemo(): Promise<KernelDemoResult> {
     queryCapabilityType: "generic.execute",
   };
 
+  // ── 12. Knowledge Kernel — register knowledge + query "what applies?" ───
+  // ADR-0017: protocols register knowledge; kernel owns storage/query.
+  const kk = createInMemoryKnowledgeKernel();
+  const kkNow = coordClock.now();
+
+  // Register a source.
+  const demoSource = {
+    id: asId<"SourceId">("source-demo-sop"),
+    type: "sop" as const,
+    title: "Demo Standard Operating Procedure",
+    issuer: "OpsOS Demo",
+    version: "1.0",
+    publishedAt: kkNow,
+    effectiveAt: kkNow,
+  };
+  kk.sources.register(demoSource);
+
+  // Register a knowledge item (procedure) — generic, no industry terms.
+  const procItemId = asId<"KnowledgeItemId">("ki-proc-generic-execute");
+  const procKnowledgeItem: KnowledgeItem = {
+    id: procItemId,
+    kind: "procedure",
+    tenantId: asId<"TenantId">("tenant-demo"),
+    title: "Generic Execution Procedure",
+    description: "A generic SOP for executing a task — no industry-specific content.",
+    version: 1,
+    status: "active",
+    applicability: {
+      subjectKind: "resource",
+      subjectId: "resource-R1",
+      conditions: [],
+      tags: ["generic", "execution"],
+    },
+    evidence: [
+      {
+        id: asId<"EvidenceId">("ev-proc-1"),
+        sourceId: demoSource.id,
+        type: "document",
+        description: "Demo SOP document",
+        reference: "demo-sop.pdf",
+        confidence: 0.95,
+      },
+    ],
+    confidence: 0.92,
+    provenance: { sourceEventIds: [] },
+    ownerProtocolId: "opsos.protocol.demo",
+    createdAt: kkNow,
+    updatedAt: kkNow,
+    metadata: {},
+  };
+  kk.registry.register(procKnowledgeItem);
+
+  const demoProcedure: Procedure = {
+    id: asId<"ProcedureId">("proc-generic-execute"),
+    knowledgeItemId: procItemId,
+    steps: [
+      { id: "step-1", order: 10, title: "Prepare", materials: [], hazards: [], qualityChecks: ["verify-readiness"], constraints: [] },
+      { id: "step-2", order: 20, title: "Execute", materials: [], hazards: [], qualityChecks: ["verify-execution"], constraints: [] },
+      { id: "step-3", order: 30, title: "Verify", materials: [], hazards: [], qualityChecks: ["verify-quality"], constraints: [] },
+    ],
+    requiredMaterials: [],
+    hazards: [],
+    qualityChecks: ["verify-readiness", "verify-execution", "verify-quality"],
+  };
+  kk.procedures.register(demoProcedure);
+
+  // Register a regulation (generic).
+  const regItemId = asId<"KnowledgeItemId">("ki-reg-generic-compliance");
+  kk.registry.register({
+    id: regItemId,
+    kind: "regulation",
+    tenantId: asId<"TenantId">("tenant-demo"),
+    title: "Generic Compliance Regulation",
+    description: "A generic regulation requiring compliance verification.",
+    version: 1,
+    status: "active",
+    applicability: { subjectKind: "resource", subjectId: "resource-R1", conditions: [], tags: ["compliance"] },
+    evidence: [],
+    confidence: 1.0,
+    provenance: { sourceEventIds: [] },
+    createdAt: kkNow,
+    updatedAt: kkNow,
+    metadata: {},
+  });
+  kk.regulations.register({
+    id: asId<"RegulationId">("reg-generic-001"),
+    knowledgeItemId: regItemId,
+    jurisdiction: "global",
+    severity: "mandatory",
+    code: "GEN-001",
+    requirements: ["Verify resource capability before assignment", "Record execution evidence"],
+  });
+
+  // Register a fact (generic).
+  const factItemId = asId<"KnowledgeItemId">("ki-fact-generic");
+  kk.registry.register({
+    id: factItemId,
+    kind: "fact",
+    tenantId: asId<"TenantId">("tenant-demo"),
+    title: "Generic Resource Capability Fact",
+    version: 1,
+    status: "active",
+    applicability: { subjectKind: "resource", subjectId: "resource-R1", conditions: [], tags: ["capability"] },
+    evidence: [],
+    confidence: 0.88,
+    provenance: { sourceEventIds: [] },
+    createdAt: kkNow,
+    updatedAt: kkNow,
+    metadata: {},
+  });
+  kk.facts.register({
+    id: asId<"FactId">("fact-generic-001"),
+    knowledgeItemId: factItemId,
+    subject: { kind: "resource", id: "resource-R1" },
+    predicate: "supports-capability",
+    object: { capabilityType: "generic.execute" },
+    confidence: 0.88,
+  });
+
+  // Query: "what knowledge applies to resource-R1?"
+  const lookupResult = kk.engine.lookup("resource", "resource-R1", undefined, kkNow);
+  const procedures = kk.engine.lookupProcedures("resource", "resource-R1", kkNow);
+  const regulations = kk.engine.lookupRegulations("resource", "resource-R1", undefined, kkNow);
+  const facts = kk.engine.lookupFacts("resource", "resource-R1", kkNow);
+  const compliance = kk.engine.checkCompliance("resource", "resource-R1", "global", kkNow);
+
+  const knowledgeKernelDemo: DemoKnowledgeKernel = {
+    items: kk.registry.list().map((ki) => ({
+      id: String(ki.id),
+      kind: ki.kind,
+      title: ki.title,
+      version: ki.version,
+      status: ki.status,
+      confidence: ki.confidence,
+      tags: ki.applicability.tags,
+      evidenceCount: ki.evidence.length,
+      ownerProtocolId: ki.ownerProtocolId,
+    })),
+    query: {
+      subjectKind: "resource",
+      subjectId: "resource-R1",
+      matchedItems: lookupResult.length,
+      matchedProcedures: procedures.length,
+      matchedRegulations: regulations.length,
+      matchedFacts: facts.length,
+      complianceCompliant: compliance.compliant,
+      complianceViolations: compliance.violations.length,
+    },
+  };
+
   return {
     seed: SEED,
     baseTime: BASE_TIME,
@@ -1064,6 +1253,7 @@ export async function runKernelDemo(): Promise<KernelDemoResult> {
     platformSnapshot,
     coordination: coordinationDemo,
     resourceKernel: resourceKernelDemo,
+    knowledgeKernel: knowledgeKernelDemo,
     modules: KERNEL_MODULES,
     primitives: CANONICAL_PRIMITIVES,
   };

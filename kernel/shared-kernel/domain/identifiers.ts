@@ -56,6 +56,21 @@ export type CertificationId = Brand<string, "CertificationId">;
 export type TelemetryId = Brand<string, "TelemetryId">;
 export type MaintenanceId = Brand<string, "MaintenanceId">;
 
+// ── Knowledge primitives (M8 — additive, ADR-0010-compliant) ────────────────
+export type KnowledgeItemId = Brand<string, "KnowledgeItemId">;
+export type FactId = Brand<string, "FactId">;
+export type EvidenceId = Brand<string, "EvidenceId">;
+export type SourceId = Brand<string, "SourceId">;
+export type ProcedureId = Brand<string, "ProcedureId">;
+export type StandardId = Brand<string, "StandardId">;
+export type RegulationId = Brand<string, "RegulationId">;
+export type GuidelineId = Brand<string, "GuidelineId">;
+export type OntologyId = Brand<string, "OntologyId">;
+export type TaxonomyId = Brand<string, "TaxonomyId">;
+export type VocabularyId = Brand<string, "VocabularyId">;
+export type MeasurementId = Brand<string, "MeasurementId">;
+export type HypothesisId = Brand<string, "HypothesisId">;
+
 // ── Identity & tenancy IDs ──────────────────────────────────────────────────
 export type UserId = Brand<string, "UserId">;
 export type PrincipalId = Brand<string, "PrincipalId">;

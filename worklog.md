@@ -695,3 +695,57 @@ Work Log:
 
 Stage Summary:
 - Milestone 7 complete. OpsOS now knows what resources ARE. The Coordination Kernel queries the Resource Kernel ("give me resources capable of X") rather than owning resources itself. Every resource has a digital twin (current state, history, predictions, telemetry) — giving AI something to reason over. Location is an abstraction (not GPS) so mobility uses roads, cleaning uses buildings, healthcare uses hospital wings through the same interface. Skills are capabilities with certification + quality + confidence — making the matching engine dramatically better. Adding a new industry no longer requires building resource management. Next: M8 (Domain Modeling Framework), then M9 (Cleaning Domain), M10 (Cleaning Protocol).
+
+---
+Task ID: M8-knowledge
+Agent: knowledge-kernel
+Task: Build the Knowledge Kernel (13 registries: source, evidence, knowledge, fact, procedure, standard, regulation, guideline, ontology, taxonomy, vocabulary, measurement, hypothesis + KnowledgeQueryEngine + 3 use-cases + in-memory implementations).
+
+Work Log:
+- Read M1-M7 worklog, knowledge primitives (knowledge.ts), identifiers.ts, result.ts, errors.ts, protocol-manifest.ts, value-objects/index.ts, and the resource-kernel as a reference for layered pattern + bundle conventions.
+- Confirmed the 14 M8 primitives + 13 branded IDs are FROZEN in @kernel/shared-kernel. Did NOT modify any shared-kernel file. All imports via `@kernel/shared-kernel`.
+- Created domain/ (14 files): source-registry, evidence-registry, knowledge-registry (THE key registry with query/supersede/retire + version chain), fact-registry, procedure-registry, standard-registry, regulation-registry, guideline-registry, ontology-registry (getNode/getChildren/getAncestors), taxonomy-registry (findNode/getPath), vocabulary-registry (lookupTerm across all vocabs), measurement-registry, hypothesis-registry (confirm/refute), knowledge-query-engine (THE engine: lookup/lookupProcedures/lookupRegulations/lookupFacts/lookupGuidelines/checkCompliance), and domain/index.ts barrel.
+- KnowledgeRegistry contract honored exactly: `KnowledgeQuery` shape, `query()` filters (status==="active" AND supersededBy===undefined AND applicability tags subset-match AND subjectKind/subjectId match AND kind∈kinds), sorted by confidence DESC then id lexicographic ASC.
+- KnowledgeQueryEngine contract honored exactly: 6 methods, `now` defaults to 0, constructor deps `{registry, procedures, regulations, facts, guidelines}`. `ComplianceResult` = {compliant, matchedRegulations, violations}; `ComplianceViolation` = {regulationId, requirement}. Matched regulations sorted by severity DESC (prohibited>mandatory>advisory>info) then id ASC; violations enumerate every requirement of every matched mandatory/prohibited regulation.
+- Created application/ (4 files): register-knowledge (atomic register item+evidence+artifact with discriminated-union artifact dispatch + exhaustiveness check), supersede-knowledge (validates oldId exists + new id ≠ old id, registers new then marks old superseded), query-knowledge (bundles all 5 engine lookups + compliance into one result), application/index.ts barrel.
+- Created infrastructure/ (15 files): 13 in-memory registries + in-memory-knowledge-query-engine + infrastructure/index.ts barrel with `InMemoryKnowledgeKernel` bundle + `createInMemoryKnowledgeKernel()` helper. Bundle pre-wires the engine with the 5 sibling registries and exposes 16 convenience pass-through methods.
+- KnowledgeRegistry in-memory implementation stores version chains (Map<id, KnowledgeItem[]>); supersede/retire produce new versions (old.version+1) with mutated status/supersededBy/updatedAt via spread. `get(id)` returns latest version; `getVersion(id, v)` retrieves historical. Secondary indices (byKind/byTag/byOwner) track the latest version per id.
+- Created interfaces/index.ts (public surface barrel) and root index.ts.
+- Every file starts with a JSDoc comment. No `Date.now()` / `Math.random()` anywhere. No UI, REST routes, Prisma, business logic, industry-specific fields. No imports from other kernels except @kernel/shared-kernel.
+- Verification: `bunx tsc --noEmit 2>&1 | grep "knowledge-kernel"` → empty. `bunx tsc --noEmit 2>&1 | grep -v "skills/" | head` → empty. Full tsc passes clean.
+
+Stage Summary:
+- Files created (37 total) under /home/z/my-project/kernel/knowledge-kernel/:
+  - domain/ (14): source-registry.ts, evidence-registry.ts, knowledge-registry.ts, fact-registry.ts, procedure-registry.ts, standard-registry.ts, regulation-registry.ts, guideline-registry.ts, ontology-registry.ts, taxonomy-registry.ts, vocabulary-registry.ts, measurement-registry.ts, hypothesis-registry.ts, knowledge-query-engine.ts, index.ts
+  - application/ (4): register-knowledge.ts, supersede-knowledge.ts, query-knowledge.ts, index.ts
+  - infrastructure/ (15): in-memory-source-registry.ts, in-memory-evidence-registry.ts, in-memory-knowledge-registry.ts, in-memory-fact-registry.ts, in-memory-procedure-registry.ts, in-memory-standard-registry.ts, in-memory-regulation-registry.ts, in-memory-guideline-registry.ts, in-memory-ontology-registry.ts, in-memory-taxonomy-registry.ts, in-memory-vocabulary-registry.ts, in-memory-measurement-registry.ts, in-memory-hypothesis-registry.ts, in-memory-knowledge-query-engine.ts, index.ts
+  - interfaces/index.ts, index.ts
+- Public surface from `@kernel/knowledge-kernel`:
+  - 14 PORTs: SourceRegistry, EvidenceRegistry, KnowledgeRegistry, FactRegistry, ProcedureRegistry, StandardRegistry, RegulationRegistry, GuidelineRegistry, OntologyRegistry, TaxonomyRegistry, VocabularyRegistry, MeasurementRegistry, HypothesisRegistry, KnowledgeQueryEngine
+  - Domain types: KnowledgeQuery, KnowledgeQueryEngineDeps, ComplianceResult, ComplianceViolation, LookupResult
+  - Application: RegisterKnowledge (+UseCase+Input+Artifact+Result+Outcome+Deps), SupersedeKnowledge (+UseCase+Input+Result+Outcome), QueryKnowledge (+UseCase+Input+Result)
+  - Infrastructure: 13 InMemory* classes + InMemoryKnowledgeQueryEngine + InMemoryKnowledgeKernel bundle + createInMemoryKnowledgeKernel() helper
+- Decisions:
+  - Applicability tag matching: subset match (every supplied tag must be in applicability.tags). When applicability.subjectKind/subjectId is undefined, the item is treated as universal for that dimension (matches any query). When tags supplied and applicability.tags empty, no match (item does not claim those tags).
+  - "active, non-expired" interpreted as `status === "active" AND supersededBy === undefined` (KnowledgeItem has no direct expires field; Source does, but Source expiry is advisory at this layer).
+  - `checkCompliance` returns matchedRegulations for the subject+jurisdiction, with violations enumerating every requirement of every matched `mandatory` or `prohibited` regulation. `compliant === violations.length === 0`. Kernel cannot itself verify subject-side observation — it surfaces obligations for the caller to verify.
+  - `supersede`/`retire` produce a NEW version entry (old.version+1) on the chain so `getVersion(oldId, old.version)` still returns the original active record.
+  - TaxonomyNode children: the primitive declares no `children` field; we read `(node as any).children` defensively and treat absence as a leaf. Documented in the in-memory implementation.
+- Determinism: all query results sorted by confidence DESC then id lexicographic ASC (or severity DESC for compliance). All time via `now` argument. Full tsc passes clean.
+
+---
+Task ID: M8
+Agent: lead (orchestrator)
+Task: Milestone 8 — Knowledge Kernel. Owns universal operational knowledge (SOPs, regulations, standards, facts, procedures, ontologies). Protocols register knowledge; the kernel owns storage, versioning, provenance, confidence, and applicability (ADR-0017).
+
+Work Log:
+- Canonical primitives (additive, ADR-0010-compliant): added 14 knowledge primitives — KnowledgeItem, Fact, Evidence, Source, Procedure, Standard, Regulation, Guideline, Ontology, Taxonomy, Vocabulary, Measurement, Hypothesis, Confidence. 13 new branded IDs. Total canonical language now 52 primitives.
+- Knowledge Kernel module (kernel/knowledge-kernel/): 14 registries (source, evidence, knowledge [THE key registry with query/supersede/retire], fact, procedure, standard, regulation, guideline, ontology, taxonomy, vocabulary, measurement, hypothesis) + KnowledgeQueryEngine (lookup, lookupProcedures, lookupRegulations, lookupFacts, lookupGuidelines, checkCompliance). 3 use-cases (RegisterKnowledge, SupersedeKnowledge, QueryKnowledge). 15 in-memory implementations + createInMemoryKnowledgeKernel() bundle.
+- v1 API: kernel/api/v1/knowledge-kernel.ts exports the full surface.
+- ADR-0017: knowledge kernel owns operational knowledge; protocols register, not hardcode; compiler asks "what procedures apply?"; coordination asks "certified for SOP-32?"; twins become intelligent.
+- Demo: extended kernel-demo to register a source, a procedure (3-step SOP with quality checks), a regulation (mandatory, with requirements), and a fact — all generic, no industry terms. Then queried the KnowledgeQueryEngine: lookup("resource", "resource-R1") → 3 matched items, 1 procedure, 1 regulation, 1 fact, COMPLIANT.
+- Control Plane: added Knowledge Explorer tab (13th) — shows the lookup query result (items/procedures/regulations/facts counts), compliance badge, registered knowledge item cards (kind badge, confidence, evidence count, version, tags, owner protocol), and the 14-registry summary.
+- Verification: tsc exit 0, lint passes. Agent Browser: Knowledge tab renders with Knowledge Explorer, lookup query, COMPLIANT badge, Generic Execution Procedure, all 14 registries, 13 tabs total. No errors. footerAtBottom=true.
+
+Stage Summary:
+- Milestone 8 complete. OpsOS now knows WHY — not just how to execute, coordinate, and allocate, but the SOPs, regulations, standards, facts, and procedures that govern operational work. Digital twins become intelligent (twin → knowledge → recommendations → predictions). The compiler becomes smarter (intent → knowledge lookup → execution plan). Protocols reference knowledge instead of reinventing it. Regulations, SOPs, and standards are updateable independently of protocol code. The kernel is now effectively complete — the 11 subsystems (Identity, Runtime, Events, Compiler, Coordination, Resources, Knowledge, Simulation, Observability, Extensions, Control Plane) are all in place. Future work (Cleaning, Mobility, Healthcare) becomes installed protocols, not kernel development. Next: M9 (Domain Modeling Framework), then M10 (Cleaning Domain), M11 (Cleaning Protocol).

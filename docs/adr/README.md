@@ -282,3 +282,33 @@ capacity. Digital twins belong here (not as a standalone concept) — every
 resource has one, giving AI something to reason over. Location is an
 abstraction (not GPS) so mobility uses roads, cleaning uses buildings, and
 healthcare uses hospital wings through the same interface.
+
+## ADR-0017 — The Knowledge Kernel owns operational knowledge, not protocols
+
+**Status:** Accepted
+**Context:** OpsOS knows how to execute, coordinate, and allocate — but it
+doesn't know *why*. SOPs, regulations, safety procedures, best practices,
+material compatibility, medical guidelines, building codes, and hazard
+classifications are universal across every operational industry. If protocols
+hardcoded this knowledge, it would be duplicated, unversioned, and impossible to
+audit or update independently of protocol code.
+**Decision:** The Knowledge Kernel owns universal operational knowledge as
+immutable, versioned, provenanced artifacts with confidence + applicability
+metadata. It introduces 14 canonical primitives (KnowledgeItem, Fact, Evidence,
+Source, Procedure, Standard, Regulation, Guideline, Ontology, Taxonomy,
+Vocabulary, Measurement, Hypothesis, Confidence) and 14 registries (one per
+artifact type + a KnowledgeQueryEngine). Protocols REGISTER knowledge artifacts
+through the Protocol SDK (carrying `ownerProtocolId`); the kernel owns storage,
+versioning, provenance, confidence, and applicability. The KnowledgeQueryEngine
+exposes immutable, queryable knowledge to the Compiler (what procedures apply?),
+Coordination Kernel (find resources certified for SOP-32, compliant with
+Regulation-9), Resource Kernel (capability → knowledge → certification →
+evidence → confidence), and future AI services. Knowledge is deterministic,
+event-sourced, replayable, and independent of storage technology.
+**Consequences:** Digital twins become intelligent (twin → knowledge →
+recommendations → predictions). The compiler becomes smarter (intent →
+knowledge lookup → execution plan). Protocols reference knowledge instead of
+reinventing it. Regulations, SOPs, and standards are updateable independently
+of protocol code. Training, compliance, and audit become universal. The kernel
+is now effectively complete — future work (Cleaning, Mobility, Healthcare)
+becomes installed protocols, not kernel development.

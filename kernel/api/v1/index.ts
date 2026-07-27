@@ -46,3 +46,4 @@ export * from "./application-runtime";
 export * from "./control-plane";
 export * from "./coordination";
 export * from "./resource-kernel";
+export * from "./knowledge-kernel";
