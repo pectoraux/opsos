@@ -106,6 +106,17 @@ import type {
   Regulation,
   Fact,
 } from "@kernel/shared-kernel";
+import {
+  createInMemoryDomainModeling,
+  defineDomain,
+  defineEntityType,
+  defineRelationship,
+  defineStateMachine,
+  transition,
+  defineMeasurement,
+  defineConstraint,
+} from "@kernel/domain-modeling";
+import type { DomainDefinition } from "@kernel/domain-modeling";
 
 // ── Static catalogs (mirror docs/) ──────────────────────────────────────────
 
@@ -135,6 +146,7 @@ export const KERNEL_MODULES: readonly ModuleInfo[] = [
   { name: "coordination", layer: "Coordination", dependsOn: "shared-kernel", description: "Coordination Kernel: matching/negotiation/reservation/commitment/assignment/queue/transfer/escalation engines. Marketplace is one strategy (ADR-0015)." },
   { name: "resource-kernel", layer: "Resource", dependsOn: "shared-kernel", description: "Resource Kernel: universal resource concepts — state, availability, capacity, location, calendar, skills, twin, maintenance, quality. Coordination queries it (ADR-0016)." },
   { name: "knowledge-kernel", layer: "Knowledge", dependsOn: "shared-kernel", description: "Knowledge Kernel: universal operational knowledge — SOPs, regulations, standards, facts, procedures, ontologies. Protocols register, kernel owns (ADR-0017)." },
+  { name: "domain-modeling", layer: "Domain", dependsOn: "shared-kernel, knowledge-kernel", description: "Domain Modeling Framework: semantic layer — entity types, relationships, state machines, measurements, constraints. Domain ≠ Protocol (ADR-0018)." },
   { name: "api/v1", layer: "Surface", dependsOn: "all modules (facade)", description: "Frozen versioned public API (ADR-0009). Everything outside the kernel imports from here." },
 ];
 
@@ -394,6 +406,37 @@ export interface DemoKnowledgeKernel {
   readonly query: DemoKnowledgeQuery;
 }
 
+export interface DemoEntityTypeInfo {
+  readonly id: string;
+  readonly name: string;
+  readonly attributeCount: number;
+  readonly relationshipCount: number;
+  readonly twinEnabled: boolean;
+  readonly hasStateMachine: boolean;
+}
+
+export interface DemoRelationshipInfo {
+  readonly id: string;
+  readonly name: string;
+  readonly kind: string;
+  readonly source: string;
+  readonly target: string;
+  readonly cardinality: string;
+}
+
+export interface DemoDomainModeling {
+  readonly domainId: string;
+  readonly domainName: string;
+  readonly version: number;
+  readonly entityTypeCount: number;
+  readonly relationshipCount: number;
+  readonly stateMachineCount: number;
+  readonly measurementCount: number;
+  readonly constraintCount: number;
+  readonly entityTypes: readonly DemoEntityTypeInfo[];
+  readonly relationships: readonly DemoRelationshipInfo[];
+}
+
 export interface KernelDemoResult {
   readonly seed: number;
   readonly baseTime: number;
@@ -409,6 +452,7 @@ export interface KernelDemoResult {
   readonly coordination: DemoCoordination;
   readonly resourceKernel: DemoResourceKernel;
   readonly knowledgeKernel: DemoKnowledgeKernel;
+  readonly domainModeling: DemoDomainModeling;
   readonly modules: readonly ModuleInfo[];
   readonly primitives: readonly PrimitiveInfo[];
 }
@@ -1218,6 +1262,160 @@ export async function runKernelDemo(): Promise<KernelDemoResult> {
     },
   };
 
+  // ── 13. Domain Modeling Framework — Generic Operations Domain ────────────
+  // ADR-0018: domain definition (semantics) ≠ protocol (behavior).
+  // Asset contains Area; Work Unit requires Capability. No industry terms.
+  const dm = createInMemoryDomainModeling();
+
+  const assetType = defineEntityType({
+    id: "asset",
+    name: "Asset",
+    displayName: "Asset",
+    attributes: [
+      { name: "label", type: "string", required: true },
+      { name: "value", type: "number", required: false },
+    ],
+    relationships: ["asset-contains-area"],
+    stateMachineId: "asset-lifecycle",
+    twinEnabled: true,
+    resourceBindings: [],
+    description: "A generic operational asset that contains areas.",
+  });
+
+  const areaType = defineEntityType({
+    id: "area",
+    name: "Area",
+    displayName: "Area",
+    attributes: [
+      { name: "label", type: "string", required: true },
+      { name: "size", type: "measurement", required: false, measurementMetric: "area" },
+    ],
+    relationships: [],
+    twinEnabled: true,
+    resourceBindings: [],
+    description: "A sub-region within an asset.",
+  });
+
+  const workUnitType = defineEntityType({
+    id: "work-unit",
+    name: "WorkUnit",
+    displayName: "Work Unit",
+    attributes: [
+      { name: "title", type: "string", required: true },
+      { name: "priority", type: "number", required: false, default: 0 },
+    ],
+    relationships: ["work-unit-requires-capability"],
+    stateMachineId: "work-unit-lifecycle",
+    twinEnabled: false,
+    resourceBindings: [{ resourceType: "generic", capabilityType: "generic.execute" }],
+    description: "A unit of work that requires a capability.",
+  });
+
+  const assetLifecycle = defineStateMachine({
+    id: "asset-lifecycle",
+    name: "Asset Lifecycle",
+    states: ["draft", "active", "decommissioned"],
+    transitions: [
+      transition("draft", "active"),
+      transition("active", "decommissioned"),
+    ],
+    initial: "draft",
+    terminal: ["decommissioned"],
+  });
+
+  const workUnitLifecycle = defineStateMachine({
+    id: "work-unit-lifecycle",
+    name: "Work Unit Lifecycle",
+    states: ["pending", "scheduled", "executing", "completed", "cancelled"],
+    transitions: [
+      transition("pending", "scheduled"),
+      transition("scheduled", "executing"),
+      transition("executing", "completed"),
+      transition("pending", "cancelled"),
+      transition("scheduled", "cancelled"),
+    ],
+    initial: "pending",
+    terminal: ["completed", "cancelled"],
+  });
+
+  const assetContainsArea = defineRelationship({
+    id: "asset-contains-area",
+    name: "contains",
+    sourceEntityType: "asset",
+    targetEntityType: "area",
+    kind: "contains",
+    cardinality: "one-to-many",
+    bidirectional: false,
+    inverseName: "contained_by",
+  });
+
+  const workUnitRequiresCapability = defineRelationship({
+    id: "work-unit-requires-capability",
+    name: "requires",
+    sourceEntityType: "work-unit",
+    targetEntityType: "asset",
+    kind: "requires",
+    cardinality: "many-to-many",
+    bidirectional: false,
+  });
+
+  const areaMeasurement = defineMeasurement({
+    metric: "area",
+    unit: "m²",
+    valueType: "number",
+    min: 0,
+  });
+
+  const workUnitMustHaveTitle = defineConstraint({
+    id: "work-unit-must-have-title",
+    kind: "must_have",
+    targetEntityType: "work-unit",
+    attributeRef: "title",
+    params: {},
+  });
+
+  const genericOpsDomain: DomainDefinition = defineDomain({
+    id: "opsos.domain.generic-operations",
+    name: "generic-operations",
+    version: 1,
+    displayName: "Generic Operations Domain",
+    description: "A domain definition proving the framework — Asset contains Area, Work Unit requires Capability. No industry terms.",
+    entityTypes: [assetType, areaType, workUnitType],
+    relationships: [assetContainsArea, workUnitRequiresCapability],
+    stateMachines: [assetLifecycle, workUnitLifecycle],
+    measurements: [areaMeasurement],
+    constraints: [workUnitMustHaveTitle],
+  });
+
+  dm.registerDomain(genericOpsDomain);
+
+  const domainModelingDemo: DemoDomainModeling = {
+    domainId: genericOpsDomain.id,
+    domainName: genericOpsDomain.name,
+    version: genericOpsDomain.version,
+    entityTypeCount: genericOpsDomain.entityTypes.length,
+    relationshipCount: genericOpsDomain.relationships.length,
+    stateMachineCount: genericOpsDomain.stateMachines.length,
+    measurementCount: genericOpsDomain.measurements.length,
+    constraintCount: genericOpsDomain.constraints.length,
+    entityTypes: genericOpsDomain.entityTypes.map((et) => ({
+      id: et.id,
+      name: et.name,
+      attributeCount: et.attributes.length,
+      relationshipCount: et.relationships.length,
+      twinEnabled: et.twinEnabled,
+      hasStateMachine: !!et.stateMachineId,
+    })),
+    relationships: genericOpsDomain.relationships.map((r) => ({
+      id: r.id,
+      name: r.name,
+      kind: r.kind,
+      source: r.sourceEntityType,
+      target: r.targetEntityType,
+      cardinality: r.cardinality,
+    })),
+  };
+
   return {
     seed: SEED,
     baseTime: BASE_TIME,
@@ -1254,6 +1452,7 @@ export async function runKernelDemo(): Promise<KernelDemoResult> {
     coordination: coordinationDemo,
     resourceKernel: resourceKernelDemo,
     knowledgeKernel: knowledgeKernelDemo,
+    domainModeling: domainModelingDemo,
     modules: KERNEL_MODULES,
     primitives: CANONICAL_PRIMITIVES,
   };

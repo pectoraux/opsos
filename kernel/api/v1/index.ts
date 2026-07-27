@@ -47,3 +47,4 @@ export * from "./control-plane";
 export * from "./coordination";
 export * from "./resource-kernel";
 export * from "./knowledge-kernel";
+export * from "./domain-modeling";

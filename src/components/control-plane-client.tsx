@@ -45,6 +45,7 @@ import {
   ArrowLeftRight,
   MapPin,
   BookOpen,
+  Boxes as BoxesIcon,
 } from "lucide-react";
 import type { KernelDemoResult } from "@/lib/kernel-demo";
 
@@ -60,6 +61,7 @@ type TabId =
   | "exchange"
   | "resources"
   | "knowledge"
+  | "domains"
   | "observability"
   | "architecture";
 
@@ -99,6 +101,7 @@ function layerColor(layer: string): string {
     case "Coordination": return "bg-lime-500/10 text-lime-700 dark:text-lime-400 border-lime-500/20";
     case "Resource": return "bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 border-cyan-500/20";
     case "Knowledge": return "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20";
+    case "Domain": return "bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/20";
     default: return "bg-muted text-muted-foreground border-border";
   }
 }
@@ -857,6 +860,103 @@ function KnowledgeTab({ demo }: { demo: KernelDemoResult }) {
   );
 }
 
+function DomainsTab({ demo }: { demo: KernelDemoResult }) {
+  const dm = demo.domainModeling;
+  return (
+    <div className="space-y-3">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <BoxesIcon className="size-4" /> Domain Explorer
+          </CardTitle>
+          <CardDescription>
+            The semantic layer — entity types, relationships, state machines, measurements, constraints.
+            Domain Definition (semantics) is separate from Protocol (behavior): many protocols share
+            one domain (ADR-0018).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Domain summary */}
+          <div className="rounded-lg border border-rose-500/20 bg-rose-500/5 p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <Badge variant="outline" className="text-[9px] font-mono border-rose-500/30 text-rose-700 dark:text-rose-400">
+                domain
+              </Badge>
+              <span className="font-mono text-sm font-medium">{dm.domainId}</span>
+              <span className="text-xs text-muted-foreground">v{dm.version}</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
+              <div className="rounded-md border p-2"><div className="text-[10px] text-muted-foreground">entities</div><div className="font-mono text-lg tabular-nums">{dm.entityTypeCount}</div></div>
+              <div className="rounded-md border p-2"><div className="text-[10px] text-muted-foreground">relationships</div><div className="font-mono text-lg tabular-nums">{dm.relationshipCount}</div></div>
+              <div className="rounded-md border p-2"><div className="text-[10px] text-muted-foreground">state machines</div><div className="font-mono text-lg tabular-nums">{dm.stateMachineCount}</div></div>
+              <div className="rounded-md border p-2"><div className="text-[10px] text-muted-foreground">measurements</div><div className="font-mono text-lg tabular-nums">{dm.measurementCount}</div></div>
+              <div className="rounded-md border p-2"><div className="text-[10px] text-muted-foreground">constraints</div><div className="font-mono text-lg tabular-nums">{dm.constraintCount}</div></div>
+            </div>
+          </div>
+
+          {/* Entity types */}
+          <div className="space-y-1.5">
+            <div className="text-xs font-medium text-muted-foreground">Entity types ({dm.entityTypes.length})</div>
+            {dm.entityTypes.map((et) => (
+              <div key={et.id} className="rounded-lg border p-3 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-sm font-medium">{et.name}</span>
+                    <span className="font-mono text-[10px] text-muted-foreground">{et.id}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {et.twinEnabled && (
+                      <Badge variant="outline" className="text-[9px] border-violet-500/20 text-violet-700 dark:text-violet-400">twin</Badge>
+                    )}
+                    {et.hasStateMachine && (
+                      <Badge variant="outline" className="text-[9px] border-blue-500/20 text-blue-700 dark:text-blue-400">state</Badge>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                  <span>attributes: <span className="font-mono tabular-nums">{et.attributeCount}</span></span>
+                  <span>relationships: <span className="font-mono tabular-nums">{et.relationshipCount}</span></span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Relationship graph */}
+          <div className="space-y-1.5">
+            <div className="text-xs font-medium text-muted-foreground">Relationship graph ({dm.relationships.length})</div>
+            {dm.relationships.map((r) => (
+              <div key={r.id} className="flex items-center gap-2 text-xs rounded-md border px-2.5 py-1.5">
+                <span className="font-mono text-foreground">{r.source}</span>
+                <Badge variant="outline" className="text-[9px] font-mono border-rose-500/20 text-rose-700 dark:text-rose-400">{r.kind}</Badge>
+                <span className="font-mono text-foreground">{r.target}</span>
+                <span className="text-[10px] text-muted-foreground ml-auto">{r.cardinality}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Layering note */}
+          <div className="rounded-lg border border-muted p-3">
+            <div className="text-xs font-medium text-muted-foreground mb-1">Architectural layering</div>
+            <div className="flex items-center gap-1.5 text-[11px] font-mono flex-wrap">
+              <Badge variant="outline" className="text-[9px] border-amber-500/20 text-amber-700 dark:text-amber-400">Knowledge</Badge>
+              <span className="text-muted-foreground">→</span>
+              <Badge variant="outline" className="text-[9px] border-rose-500/20 text-rose-700 dark:text-rose-400">Domain Definition</Badge>
+              <span className="text-muted-foreground">→</span>
+              <Badge variant="outline" className="text-[9px] border-teal-500/20 text-teal-700 dark:text-teal-400">Protocol</Badge>
+              <span className="text-muted-foreground">→</span>
+              <Badge variant="outline" className="text-[9px] border-pink-500/20 text-pink-700 dark:text-pink-400">Application</Badge>
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-2">
+              Creating a new industry becomes declarative: define a domain, install a protocol, launch an application.
+              Many protocols (residential, commercial, hospital, industrial) share one domain definition.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 function ObservabilityTab({ demo }: { demo: KernelDemoResult }) {
   const obs = demo.platformSnapshot?.observability;
   return (
@@ -969,6 +1069,7 @@ const TABS: readonly TabDef[] = [
   { id: "exchange", label: "Exchange", icon: ArrowLeftRight },
   { id: "resources", label: "Resources", icon: MapPin },
   { id: "knowledge", label: "Knowledge", icon: BookOpen },
+  { id: "domains", label: "Domains", icon: BoxesIcon },
   { id: "observability", label: "Observability", icon: Activity },
   { id: "architecture", label: "Architecture", icon: Grid3x3 },
 ];
@@ -1036,6 +1137,7 @@ export function ControlPlaneClient({ demo }: { demo: KernelDemoResult }) {
         {activeTab === "exchange" && <ExchangeTab demo={demo} />}
         {activeTab === "resources" && <ResourcesTab demo={demo} />}
         {activeTab === "knowledge" && <KnowledgeTab demo={demo} />}
+        {activeTab === "domains" && <DomainsTab demo={demo} />}
         {activeTab === "observability" && <ObservabilityTab demo={demo} />}
         {activeTab === "architecture" && <ArchitectureTab demo={demo} />}
       </main>

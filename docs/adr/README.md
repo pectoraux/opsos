@@ -312,3 +312,33 @@ reinventing it. Regulations, SOPs, and standards are updateable independently
 of protocol code. Training, compliance, and audit become universal. The kernel
 is now effectively complete — future work (Cleaning, Mobility, Healthcare)
 becomes installed protocols, not kernel development.
+
+## ADR-0018 — Domain Definition (semantics) is separate from Protocol (behavior)
+
+**Status:** Accepted
+**Context:** A domain (e.g. Cleaning) is a semantic model — what entities exist
+(buildings, rooms, surfaces), their relationships (contains, located_in),
+state machines, measurements, constraints, and vocabulary. A protocol is
+behavior — compiler extensions, coordination strategies, policies, workflows.
+Coupling semantics to behavior means every variant (residential, commercial,
+hospital, industrial cleaning) would duplicate the semantic model, and changing
+the model would require changing every protocol.
+**Decision:** The Domain Modeling Framework introduces `DomainDefinition` as a
+first-class, immutable semantic aggregate: entity types, relationships, state
+machines, measurements, constraints, vocabulary refs, taxonomy refs, and
+ontology bindings. It is separate from `Protocol` (behavior). Many protocols
+can share ONE domain definition — e.g. Residential/Commercial/Hospital/Industrial
+cleaning protocols all share the Cleaning Domain. The framework provides a DSL
+(`defineDomain`, `defineEntityType`, `defineRelationship`, `defineStateMachine`,
+`defineMeasurement`, `defineConstraint`) and registries (DomainRegistry,
+EntityRegistry). Entity types integrate with the Knowledge Kernel (ontology
+bindings, vocabulary refs), Resource Kernel (resource bindings, twin-enabled),
+and the compiler (constraint validation). The layering is:
+`Knowledge → Domain Definition → Protocol → Application`.
+**Consequences:** Creating a new industry becomes almost entirely declarative —
+a domain definition plus a protocol installation, no kernel changes. Many
+protocols share one domain, so semantics evolve independently of behavior.
+Entities automatically become twin-capable and resource-bindable. The compiler
+now understands `Intent → Domain Model → Knowledge → Execution Graph` instead
+of compiling from an untyped world. The kernel never learns what a "room" or
+"patient" is — domains define them.
