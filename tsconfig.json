@@ -29,6 +29,12 @@
       ],
       "@kernel/*": [
         "./kernel/*"
+      ],
+      "@kernel/api": [
+        "./kernel/api/index.ts"
+      ],
+      "@kernel/api/v1": [
+        "./kernel/api/v1/index.ts"
       ]
     }
   },

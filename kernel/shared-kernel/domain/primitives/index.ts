@@ -1,10 +1,23 @@
 /**
  * @kernel/shared-kernel/domain/primitives — barrel.
  *
- * The 16 canonical operational primitives. The ONLY domain concepts the kernel
- * knows. None carries any industry-specific field.
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │  CANONICAL LANGUAGE v1 — FROZEN (ADR-0010)                              │
+ * │  These names are the CPU instructions of OpsOS. Once frozen they do     │
+ * │  NOT change. Additive evolution only (new primitives, new optional      │
+ * │  fields); breaking changes require a new API version (v2), never an     │
+ * │  in-place mutation of v1.                                               │
+ * └─────────────────────────────────────────────────────────────────────────┘
+ *
+ * The canonical operational primitives — the ONLY domain concepts the kernel
+ * knows. None carries any industry-specific field. Total: 19.
+ *
+ *   Intent · Demand · Task · ExecutionPlan · Execution · Capability · Resource
+ *   Workflow · Policy · Rule · Decision · Event · Projection · Recommendation
+ *   Route · Schedule · Simulation · Observation · Twin
  */
 
+// ── Operational / execution-model primitives ────────────────────────────────
 export type {
   Intent,
   IntentStatus,
@@ -21,6 +34,15 @@ export type {
   Simulation,
 } from "./operational";
 
+// ── Execution (runtime act + result of running an ExecutionPlan) ────────────
+export type {
+  Execution,
+  ExecutionStatus,
+  ExecutionStep,
+  ExecutionStepStatus,
+} from "./execution";
+
+// ── Governance primitives ───────────────────────────────────────────────────
 export type {
   Policy,
   PolicyScope,
@@ -32,6 +54,7 @@ export type {
   DecisionOutcome,
 } from "./governance";
 
+// ── Event / read-model primitives ───────────────────────────────────────────
 export type {
   Event,
   EventMetadata,
@@ -41,6 +64,7 @@ export type {
 
 export type { Projection } from "./projection";
 
+// ── Temporal-allocation primitives ──────────────────────────────────────────
 export type {
   Schedule,
   ScheduleSlot,
@@ -48,3 +72,12 @@ export type {
   Route,
   RouteStatus,
 } from "./schedule";
+
+// ── Feedback / modeling primitives ──────────────────────────────────────────
+export type {
+  Observation,
+  ObservationSource,
+  ObservationSubject,
+} from "./observation";
+
+export type { Twin } from "./twin";

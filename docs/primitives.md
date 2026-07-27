@@ -1,5 +1,10 @@
 # OpsOS — Canonical Operational Primitives
 
+> **CANONICAL LANGUAGE v1 — FROZEN (ADR-0010).** These names are the CPU
+> instructions of OpsOS. Once frozen they do not change. Evolution is
+> **additive only** (new primitives, new optional fields); breaking changes
+> require a new API version (v2), never an in-place mutation of v1.
+
 > The **only** domain concepts the kernel knows. Every primitive is
 > **domain-independent**. None carries any industry-specific field.
 > Cleaning, delivery, healthcare, etc. are expressed later by composing these
@@ -8,6 +13,12 @@
 All primitives live in `@kernel/shared-kernel/domain/primitives/`. They are
 abstract canonical *types* (interfaces + branded IDs). Concrete realizations
 are owned by the module listed in [`architecture.md §4`](./architecture.md).
+
+The v1 canonical language contains **19** primitives:
+
+`Intent · Demand · Task · ExecutionPlan · Execution · Capability · Resource ·
+Workflow · Policy · Rule · Decision · Event · Projection · Recommendation ·
+Route · Schedule · Simulation · Observation · Twin`
 
 ---
 
@@ -280,6 +291,74 @@ interface Simulation {
   assumptions: Assumption[];
   ranAt: number;
   seed: number;
+}
+```
+
+## 17. Execution
+
+The runtime act AND result of running an `ExecutionPlan`'s `ExecutionGraph`.
+Distinct from the plan: the plan is *what should happen*; the execution is
+*what did happen*. The compiler produces a plan + graph; the runtime produces
+an execution by running the graph.
+
+```ts
+interface Execution {
+  id: ExecutionId;
+  planId: ExecutionPlanId;
+  intentId: IntentId;
+  status: ExecutionStatus;        // queued | running | paused | completed | failed | cancelled
+  startedAt: number;
+  endedAt?: number;
+  steps: ExecutionStep[];         // per-node results
+  observations: ObservationId[];  // observations emitted during execution
+  decisions: DecisionId[];        // decisions made during execution
+  finalState?: UnknownState;
+  seed: number;                   // determinism anchor
+}
+```
+
+> **Load-bearing distinction:** Protocols COMPILE work (Intent → ExecutionPlan +
+> ExecutionGraph). The runtime EXECUTES work (ExecutionGraph → Execution). The
+> runtime never creates work; the compiler never executes work.
+
+## 18. Observation
+
+An observed fact about the world — the feedback channel that closes the
+operational loop. Observations flow back into decisions, planning, and twins.
+Immutable and provenanced.
+
+```ts
+interface Observation {
+  id: ObservationId;
+  observedAt: number;             // from RuntimeClock
+  observer: ResourceId | PrincipalId;
+  subject: { kind: string; id: string };
+  metric?: string;
+  value: unknown;                 // validated by consumer
+  confidence: number;             // 0..1
+  source: "sensor" | "report" | "inference" | "system";
+  provenance: ProvenanceRef;
+}
+```
+
+## 19. Twin
+
+A digital twin: a MODELED representation of a real-world resource (or system)
+that the compiler and runtime reason against. Twins carry the assumed/estimated
+state used for planning, simulation, and what-if analysis. `fidelity` expresses
+how trustworthy the model is.
+
+```ts
+interface Twin {
+  id: TwinId;
+  resourceId?: ResourceId;
+  resourceType?: string;
+  modelType: string;              // protocol vocabulary
+  state: UnknownState;
+  updatedAt: number;              // from RuntimeClock
+  fidelity: number;               // 0..1
+  assumptions: Assumption[];
+  validUntil?: number;            // expiry epoch-ms
 }
 ```
 

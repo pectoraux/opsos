@@ -27,6 +27,11 @@ export type ScheduleSlotId = Brand<string, "ScheduleSlotId">;
 export type DecisionId = Brand<string, "DecisionId">;
 export type SimulationId = Brand<string, "SimulationId">;
 
+// ── Canonical language v1 additions (Execution, Observation, Twin) ──────────
+export type ExecutionId = Brand<string, "ExecutionId">;
+export type ObservationId = Brand<string, "ObservationId">;
+export type TwinId = Brand<string, "TwinId">;
+
 // ── Identity & tenancy IDs ──────────────────────────────────────────────────
 export type UserId = Brand<string, "UserId">;
 export type PrincipalId = Brand<string, "PrincipalId">;

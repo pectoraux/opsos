@@ -39,6 +39,10 @@ function layerColor(layer: string) {
       return "bg-violet-500/10 text-violet-700 dark:text-violet-400 border-violet-500/20";
     case "Host":
       return "bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/20";
+    case "Compiler":
+      return "bg-fuchsia-500/10 text-fuchsia-700 dark:text-fuchsia-400 border-fuchsia-500/20";
+    case "Surface":
+      return "bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-500/20";
     default:
       return "bg-muted text-muted-foreground border-border";
   }
@@ -65,10 +69,10 @@ export default async function Home() {
           </div>
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="border-emerald-500/30 text-emerald-700 dark:text-emerald-400">
-              Milestone 1
+              Milestones 1–2
             </Badge>
             <Badge variant="secondary" className="hidden sm:inline-flex">
-              Kernel Foundation
+              Kernel Foundation + Compiler
             </Badge>
           </div>
         </div>
@@ -78,18 +82,19 @@ export default async function Home() {
         {/* Hero */}
         <section className="space-y-4">
           <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">
-            The Kernel Foundation
+            Kernel Foundation + Compiler Framework
           </h1>
           <p className="text-muted-foreground max-w-3xl text-base sm:text-lg">
-            An immutable, deterministic core. OpsOS does not yet know what
-            cleaning, laundry, delivery, or healthcare is — it understands only
-            universal operational concepts. Industry behavior will later be
-            installed as <span className="font-medium text-foreground">protocols</span>,
-            never by modifying the kernel.
+            An immutable, deterministic core with a frozen canonical language
+            (19 primitives), a frozen versioned API (<span className="font-mono text-sm">@kernel/api/v1</span>),
+            and a staged compiler that transforms an <span className="font-medium text-foreground">Intent</span> into an
+            <span className="font-mono text-sm"> ExecutionGraph</span>. OpsOS does not yet know what cleaning,
+            delivery, or healthcare is — industry behavior installs later as protocols, never by modifying the kernel.
           </p>
           <div className="flex flex-wrap gap-2 pt-1">
             <Badge variant="outline">{demo.modules.length} kernel modules</Badge>
             <Badge variant="outline">{demo.primitives.length} canonical primitives</Badge>
+            <Badge variant="outline" className="border-slate-500/30 text-slate-600 dark:text-slate-300">frozen API v1</Badge>
             <Badge
               variant="outline"
               className={
@@ -287,6 +292,138 @@ export default async function Home() {
           </Card>
         </section>
 
+        {/* Compiler: Intent → ExecutionGraph */}
+        <section className="space-y-3">
+          <div className="flex items-baseline justify-between gap-4">
+            <h2 className="text-xl font-semibold">Compiler — Intent → ExecutionGraph</h2>
+            <span className="text-xs text-muted-foreground">
+              9-stage pipeline · ADR-0011 · the compiler creates work
+            </span>
+          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">
+                compile(intent: <span className="font-mono text-xs">{demo.compiler.intentType}</span>)
+              </CardTitle>
+              <CardDescription>
+                The intent flowed through 9 replaceable stages and emerged as an
+                <span className="font-mono text-xs"> ExecutionGraph</span>. The
+                runtime never creates work — it only executes what the compiler produces.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Stage trace */}
+              <div className="rounded-lg border overflow-hidden">
+                <div className="grid grid-cols-[auto_1fr_auto] gap-x-3 px-3 py-2 bg-muted/50 text-xs font-medium text-muted-foreground">
+                  <span>phase</span>
+                  <span>stage</span>
+                  <span className="text-right">result</span>
+                </div>
+                <Separator />
+                {demo.compiler.stages.map((s) => (
+                  <div
+                    key={s.name}
+                    className="grid grid-cols-[auto_1fr_auto] gap-x-3 px-3 py-2 text-xs items-center hover:bg-muted/30"
+                  >
+                    <Badge
+                      variant="outline"
+                      className={`text-[9px] font-mono ${
+                        s.error
+                          ? "border-destructive/30 text-destructive"
+                          : "text-muted-foreground"
+                      }`}
+                    >
+                      {s.phase}
+                    </Badge>
+                    <span className="font-mono text-foreground">{s.name}</span>
+                    <span className={`font-mono text-right text-[10px] ${s.error ? "text-destructive" : "text-emerald-600 dark:text-emerald-400"}`}>
+                      {s.error ? "aborted" : "ok"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Output graph */}
+              <div
+                className={`rounded-lg border p-4 ${
+                  demo.compiler.ok
+                    ? "border-emerald-500/30 bg-emerald-500/5"
+                    : "border-destructive/30 bg-destructive/5"
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <Badge
+                    variant="outline"
+                    className={
+                      demo.compiler.ok
+                        ? "border-emerald-500/40 text-emerald-700 dark:text-emerald-400"
+                        : "border-destructive/40 text-destructive"
+                    }
+                  >
+                    {demo.compiler.ok ? "COMPILED" : "FAILED"}
+                  </Badge>
+                  {demo.compiler.graphId && (
+                    <span className="text-xs text-muted-foreground font-mono">
+                      {demo.compiler.graphId}
+                    </span>
+                  )}
+                </div>
+                {demo.compiler.ok ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                    <div>
+                      <div className="text-muted-foreground">nodes</div>
+                      <div className="font-mono text-foreground tabular-nums">{demo.compiler.nodeCount}</div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground">edges</div>
+                      <div className="font-mono text-foreground tabular-nums">{demo.compiler.edgeCount}</div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground">tasks</div>
+                      <div className="font-mono text-foreground tabular-nums">{demo.compiler.taskCount}</div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground">seed</div>
+                      <div className="font-mono text-foreground tabular-nums">{demo.compiler.seed}</div>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-destructive">
+                    {demo.compiler.abortedReason ?? "Compilation failed."}
+                  </p>
+                )}
+              </div>
+
+              {/* Diagnostics */}
+              {demo.compiler.diagnostics.length > 0 && (
+                <div className="space-y-1">
+                  <div className="text-xs font-medium text-muted-foreground">Diagnostics</div>
+                  <div className="max-h-40 overflow-y-auto space-y-1">
+                    {demo.compiler.diagnostics.map((d, i) => (
+                      <div key={i} className="flex items-start gap-2 text-[11px]">
+                        <Badge
+                          variant="outline"
+                          className={`text-[9px] shrink-0 ${
+                            d.severity === "error"
+                              ? "border-destructive/30 text-destructive"
+                              : d.severity === "warn"
+                              ? "border-amber-500/30 text-amber-700 dark:text-amber-400"
+                              : "text-muted-foreground"
+                          }`}
+                        >
+                          {d.severity}
+                        </Badge>
+                        <span className="font-mono text-[10px] text-muted-foreground shrink-0">{d.code}</span>
+                        <span className="text-foreground/80">{d.message}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </section>
+
         {/* Modules */}
         <section className="space-y-3">
           <h2 className="text-xl font-semibold">Kernel Modules</h2>
@@ -346,6 +483,9 @@ export default async function Home() {
               { t: "Clean Architecture", d: "Each module: domain / application / infrastructure / interfaces. Dependency direction strictly inward." },
               { t: "Serializable Policies", d: "Rules use PredicateSpec data, not JS functions — replayable, transportable, auditable." },
               { t: "Protocols as Plugins", d: "Industry behavior installs via the ExtensionHost. The kernel ships host + registry only." },
+              { t: "Compiler Creates Work", d: "Intent → compile() → ExecutionGraph → execute() → Execution. The runtime never creates work; the compiler never executes it." },
+              { t: "Frozen API v1", d: "Everything outside the kernel imports from @kernel/api/v1. Breaking changes require a new version (v2)." },
+              { t: "Frozen Canonical Language", d: "19 primitives treated like CPU instructions. Additive evolution only within v1." },
             ].map((i) => (
               <Card key={i.t} className="py-4">
                 <CardContent className="space-y-1.5">
@@ -384,7 +524,7 @@ export default async function Home() {
 
         {/* What this milestone does NOT build */}
         <section className="space-y-3">
-          <h2 className="text-xl font-semibold">Explicitly Not Built (M1)</h2>
+          <h2 className="text-xl font-semibold">Explicitly Not Built</h2>
           <Card>
             <CardContent className="pt-2">
               <div className="flex flex-wrap gap-2">
@@ -412,7 +552,7 @@ export default async function Home() {
       <footer className="mt-auto border-t bg-muted/30">
         <div className="container mx-auto max-w-6xl px-4 py-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-muted-foreground">
           <div>
-            <span className="font-mono text-foreground">OpsOS</span> · Kernel Foundation · Milestone 1
+            <span className="font-mono text-foreground">OpsOS</span> · Kernel Foundation + Compiler · Milestones 1–2
           </div>
           <div className="flex items-center gap-3">
             <span>No business logic. No protocols. Kernel only.</span>

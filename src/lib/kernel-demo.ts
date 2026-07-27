@@ -13,6 +13,9 @@
  *      provenance.
  *   5. Extension host — a (fake) protocol plugin registers capabilities &
  *      intent types through the ExtensionHost.
+ *   6. Compiler — an Intent flows through the 9-stage pipeline and emerges as
+ *      an ExecutionGraph (ADR-0011: the compiler creates work; the runtime
+ *      executes it).
  *
  * Runs entirely on the backend (server component). No Date.now() leaks —
  * time comes from a FixedRuntimeClock; randomness from a SeededRandomSource.
@@ -39,6 +42,13 @@ import {
   installPlugin,
 } from "@kernel/extension";
 import type { Plugin } from "@kernel/extension";
+import {
+  DefaultCompilerPipeline,
+  createDefaultStages,
+  createCompilationContext,
+} from "@kernel/compiler";
+import type { CompilationContext } from "@kernel/compiler";
+import { NoopScheduler } from "@kernel/scheduling";
 
 // ── Static catalogs (mirror docs/) ──────────────────────────────────────────
 
@@ -50,7 +60,7 @@ export interface ModuleInfo {
 }
 
 export const KERNEL_MODULES: readonly ModuleInfo[] = [
-  { name: "shared-kernel", layer: "Foundation", dependsOn: "—", description: "16 canonical primitives, branded IDs, Result/Option, value objects, RuntimeClock & RandomSource ports." },
+  { name: "shared-kernel", layer: "Foundation", dependsOn: "—", description: "19 canonical primitives (frozen v1), branded IDs, Result/Option, value objects, RuntimeClock & RandomSource ports." },
   { name: "events", layer: "Foundation", dependsOn: "shared-kernel", description: "EventEnvelope, EventStore (optimistic concurrency), SnapshotStore, EventSourcedRepository." },
   { name: "observability", layer: "Foundation", dependsOn: "shared-kernel", description: "Tracer, Meter, Logger, AuditSink, ProvenanceRecorder ports + Noop/InMemory adapters." },
   { name: "config", layer: "Foundation", dependsOn: "shared-kernel", description: "ConfigSource, ConfigRegistry (precedence merge), Secrets ports + in-memory/env adapters." },
@@ -61,6 +71,8 @@ export const KERNEL_MODULES: readonly ModuleInfo[] = [
   { name: "policy", layer: "Governance", dependsOn: "shared-kernel, events, runtime", description: "PredicateSpec evaluator, PolicyDefinition, Rule, PolicyEngine, Decision with provenance." },
   { name: "scheduling", layer: "Foundation", dependsOn: "shared-kernel, events, runtime", description: "Schedule, ScheduleSlot, Scheduler PORT + NoopScheduler. No algorithm (ADR-0008)." },
   { name: "extension", layer: "Host", dependsOn: "shared-kernel", description: "Plugin, ExtensionHost, ExtensionRegistry, 9 registration contracts. Protocol host only (ADR-0006)." },
+  { name: "compiler", layer: "Compiler", dependsOn: "shared-kernel, runtime, policy, scheduling, extension", description: "Intent → ExecutionGraph. 9-stage replaceable pipeline (ADR-0011). The ONLY component that creates work." },
+  { name: "api/v1", layer: "Surface", dependsOn: "all modules (facade)", description: "Frozen versioned public API (ADR-0009). Everything outside the kernel imports from here." },
 ];
 
 export interface PrimitiveInfo {
@@ -73,18 +85,21 @@ export const CANONICAL_PRIMITIVES: readonly PrimitiveInfo[] = [
   { name: "Demand", owner: "runtime" },
   { name: "Task", owner: "runtime" },
   { name: "ExecutionPlan", owner: "runtime" },
+  { name: "Execution", owner: "runtime" },
   { name: "Capability", owner: "runtime" },
   { name: "Resource", owner: "runtime" },
   { name: "Workflow", owner: "runtime" },
   { name: "Policy", owner: "policy" },
   { name: "Rule", owner: "policy" },
+  { name: "Decision", owner: "policy" },
   { name: "Event", owner: "events" },
   { name: "Projection", owner: "projections" },
   { name: "Recommendation", owner: "runtime" },
   { name: "Route", owner: "scheduling" },
   { name: "Schedule", owner: "scheduling" },
-  { name: "Decision", owner: "policy" },
   { name: "Simulation", owner: "runtime" },
+  { name: "Observation", owner: "runtime" },
+  { name: "Twin", owner: "runtime" },
 ];
 
 // ── Demo result (plain serialisable data for rendering) ─────────────────────
@@ -119,6 +134,30 @@ export interface DemoExtension {
   readonly registrationKinds: readonly { kind: string; count: number }[];
 }
 
+export interface DemoCompilerStage {
+  readonly name: string;
+  readonly phase: string;
+  readonly order: number;
+  readonly ran: boolean;
+  readonly durationMs?: number;
+  readonly error?: string;
+}
+
+export interface DemoCompiler {
+  readonly intentType: string;
+  readonly ok: boolean;
+  readonly stageCount: number;
+  readonly stages: readonly DemoCompilerStage[];
+  readonly graphId?: string;
+  readonly nodeCount: number;
+  readonly edgeCount: number;
+  readonly seed: number;
+  readonly planId?: string;
+  readonly taskCount: number;
+  readonly diagnostics: readonly { severity: string; code: string; message: string; stage: string }[];
+  readonly abortedReason?: string;
+}
+
 export interface KernelDemoResult {
   readonly seed: number;
   readonly baseTime: number;
@@ -127,6 +166,7 @@ export interface KernelDemoResult {
   readonly projection: { readonly name: string; readonly state: Readonly<Record<string, number>> };
   readonly decision: DemoDecision;
   readonly extension: DemoExtension;
+  readonly compiler: DemoCompiler;
   readonly modules: readonly ModuleInfo[];
   readonly primitives: readonly PrimitiveInfo[];
 }
@@ -279,6 +319,95 @@ export async function runKernelDemo(): Promise<KernelDemoResult> {
     { kind: "analytics", count: registry.analytics().length },
   ].filter((k) => k.count > 0);
 
+  // ── 6. Compiler — Intent → 9-stage pipeline → ExecutionGraph ─────────────
+  // ADR-0011: the compiler creates work; the runtime executes it.
+  const compilerPolicyEngine = new InMemoryPolicyEngine();
+  // An ALLOW policy so compilation proceeds past the policy-evaluator stage.
+  compilerPolicyEngine.register({
+    id: asId<"PolicyId">("compiler.allow-all"),
+    version: 1,
+    name: "Compiler Allow-All",
+    scope: "global",
+    priority: 1,
+    effect: "allow",
+    status: "active",
+    rules: [
+      {
+        id: asId<"RuleId">("compiler.rule.allow"),
+        name: "allow compilation",
+        condition: { op: "exists", args: ["type"] },
+        effect: "allow",
+        priority: 1,
+        scope: "global",
+      },
+    ],
+  });
+
+  const compilerClock = new FixedRuntimeClock(BASE_TIME + 10_000);
+  const compilerRandom = new SeededRandomSource(SEED + 1);
+  const compilerPipeline = new DefaultCompilerPipeline({
+    stages: createDefaultStages({
+      policyEvaluator: { engine: compilerPolicyEngine },
+      scheduler: { scheduler: new NoopScheduler() },
+    }),
+  });
+
+  const intent = {
+    id: asId<"IntentId">("intent-demo-001"),
+    type: "demo.run",
+    principalId: asId<"PrincipalId">("principal-demo"),
+    tenantId: asId<"TenantId">("tenant-demo"),
+    payload: { target: "self-test", iterations: 1 },
+    priority: { level: 5, label: "normal" },
+    constraints: [
+      {
+        kind: "temporal-window",
+        params: { start: BASE_TIME + 20_000, end: BASE_TIME + 86_400_000, timezone: "UTC" },
+      },
+    ],
+    status: "declared" as const,
+    createdAt: compilerClock.now(),
+    updatedAt: compilerClock.now(),
+  };
+
+  const compileCtx: CompilationContext = createCompilationContext(intent, {
+    clock: compilerClock,
+    random: compilerRandom,
+    principalId: intent.principalId,
+    tenantId: intent.tenantId,
+    correlationId: "compile-demo",
+    registry,
+  });
+
+  const compileResult = await compilerPipeline.compile(intent, compileCtx);
+
+  const compilerDemo: DemoCompiler = {
+    intentType: intent.type,
+    ok: compileResult.ok,
+    stageCount: compileResult.stages.length,
+    stages: compileResult.stages.map((s) => ({
+      name: s.name,
+      phase: s.phase,
+      order: s.order,
+      ran: s.ran,
+      durationMs: s.durationMs,
+      error: s.error,
+    })),
+    graphId: compileResult.graph?.id,
+    nodeCount: compileResult.graph?.nodes.length ?? 0,
+    edgeCount: compileResult.graph?.edges.length ?? 0,
+    seed: compileResult.graph?.seed ?? 0,
+    planId: compileResult.plan?.id,
+    taskCount: compileResult.plan?.tasks.length ?? 0,
+    diagnostics: compileResult.diagnostics.map((d) => ({
+      severity: d.severity,
+      code: d.code,
+      message: d.message,
+      stage: d.stage,
+    })),
+    abortedReason: compileResult.aborted?.reason,
+  };
+
   return {
     seed: SEED,
     baseTime: BASE_TIME,
@@ -308,6 +437,7 @@ export async function runKernelDemo(): Promise<KernelDemoResult> {
       })),
       registrationKinds,
     },
+    compiler: compilerDemo,
     modules: KERNEL_MODULES,
     primitives: CANONICAL_PRIMITIVES,
   };

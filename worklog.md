@@ -459,3 +459,19 @@ Work Log:
 
 Stage Summary:
 - MILESTONE 1 COMPLETE. The OpsOS kernel foundation is built (11 modules, 16 canonical primitives, full architecture docs) AND proven executable via a live, read-only, deterministic kernel inspector. Browser-verified interactivity is the standard of done, and it passes.
+
+---
+Task ID: M2
+Agent: lead (orchestrator)
+Task: Architecture review actions + Milestone 2 (Compiler Framework). (1) Freeze canonical language — add Execution, Observation, Twin. (2) Freeze kernel API v1. (3) Build the Intent → ExecutionGraph compiler.
+
+Work Log:
+- Phase 0a — Canonical language freeze: added ExecutionId/ObservationId/TwinId branded IDs; created execution.ts, observation.ts, twin.ts primitives; updated primitives barrel (now 19, marked FROZEN v1 / ADR-0010); updated docs/primitives.md with the 3 new specs + freeze notice.
+- Phase 0b — API freeze: created kernel/api/v1/ with 12 curated sub-modules (shared-kernel, events, observability, config, runtime, identity, organizations, projections, policy, scheduling, compiler, extensions) + a root index exporting `v1`. Added `@kernel/api` + `@kernel/api/v1` path aliases. Added ADR-0009 (frozen API), ADR-0010 (canonical immutability), ADR-0011 (compiler creates work, runtime executes).
+- Phase 1 — Compiler framework (kernel/compiler/): domain (CompilationContext IR with immutable `with()`, CompilerStage, CompilerPhase, CompilerPipeline port, CompilerResult/StageTrace, CompilerDiagnostic, AbortCompilationError/StageFailedError); 9 kernel-provided replaceable stages (Normalizer → Validator → PolicyEvaluator → CapabilityResolver → Planner → Optimizer → Scheduler → Router → GraphBuilder); application compile() use-case; DefaultCompilerPipeline (deterministic (phase,order,name) ordering, sequential threading, abort-on-error). The scheduler stage uses NoopScheduler (ADR-0008) so the graph builds with empty schedule; the policy-evaluator stage aborts on deny/require-approval.
+- Phase 2 — Inspector: extended src/lib/kernel-demo.ts with a compiler demo (an Intent of type "demo.run" flows through the 9-stage pipeline and emerges as an ExecutionGraph); added a Compiler section to src/app/page.tsx (stage trace table, COMPILED/FAILED badge, node/edge/task/seed metrics, diagnostics stream); updated hero/footer/invariants to reflect M1+M2, 13 modules, 19 primitives, frozen API v1.
+- Fixes along the way: removed determinism-violating Date.now()/Math.random() fallback in InMemoryEventStore (counter-based now); fixed ExecutionGraph import (lives in @kernel/runtime, not shared-kernel); resolved v1 barrel export collisions (revokeRole → revokeMembershipRole for orgs; moved shared-kernel re-exports out of events.ts); eslint config added no-empty-object-type:off for command-marker interfaces.
+- Verification: `bunx tsc --noEmit` → exit 0. `bun run lint` → passes. dev.log all GET / 200, no console errors. Agent Browser: compiler section rendered, all 9 stages present (normalize→validate→evaluate→resolve→plan→optimize→schedule→route→finalize), COMPILED badge, 13 modules, 19 primitives, footerAtBottom=true, responsive at 390px + 1440px.
+
+Stage Summary:
+- Milestone 2 complete. The kernel now has a frozen canonical language (19 primitives), a frozen versioned public API (@kernel/api/v1), and a staged compiler (Intent → ExecutionGraph) that is the ONLY component creating work. The runtime executes work; it never creates it. The 9-stage pipeline is replaceable end-to-end — protocols will register additional stages via the extension system in Milestone 3 (Protocol SDK). No business logic, no protocols, no applications — the OS philosophy is preserved.
