@@ -47,6 +47,7 @@ import {
   BookOpen,
   Boxes as BoxesIcon,
   Package as PackageIcon,
+  FlaskConical,
 } from "lucide-react";
 import type { KernelDemoResult } from "@/lib/kernel-demo";
 
@@ -64,6 +65,7 @@ type TabId =
   | "knowledge"
   | "domains"
   | "packages"
+  | "simulation"
   | "observability"
   | "architecture";
 
@@ -105,6 +107,7 @@ function layerColor(layer: string): string {
     case "Knowledge": return "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20";
     case "Domain": return "bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/20";
     case "Packaging": return "bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/20";
+    case "Conformance": return "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20";
     default: return "bg-muted text-muted-foreground border-border";
   }
 }
@@ -1065,6 +1068,117 @@ function PackagesTab({ demo }: { demo: KernelDemoResult }) {
   );
 }
 
+function SimulationTab({ demo }: { demo: KernelDemoResult }) {
+  const c = demo.conformance;
+  return (
+    <div className="space-y-3">
+      {/* Suite summary */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <FlaskConical className="size-4" /> Conformance Suite
+          </CardTitle>
+          <CardDescription>
+            25 generic, industry-neutral scenarios validating kernel neutrality.
+            Every future protocol must pass before packaging (ADR-0020).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            <div className="rounded-lg border p-3">
+              <div className="text-[10px] text-muted-foreground">scenarios</div>
+              <div className="font-mono text-lg tabular-nums">{c.totalScenarios}</div>
+            </div>
+            <div className="rounded-lg border p-3 border-emerald-500/20">
+              <div className="text-[10px] text-muted-foreground">passed</div>
+              <div className="font-mono text-lg tabular-nums text-emerald-600 dark:text-emerald-400">{c.passed}</div>
+            </div>
+            <div className="rounded-lg border p-3">
+              <div className="text-[10px] text-muted-foreground">failed</div>
+              <div className={`font-mono text-lg tabular-nums ${c.failed > 0 ? "text-destructive" : "text-muted-foreground"}`}>{c.failed}</div>
+            </div>
+            <div className="rounded-lg border p-3 border-emerald-500/20">
+              <div className="text-[10px] text-muted-foreground">replay verified</div>
+              <div className={`font-mono text-sm ${c.replayVerified ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
+                {c.replayVerified ? "✓ ALL" : "✗ FAIL"}
+              </div>
+            </div>
+            <div className="rounded-lg border p-3">
+              <div className="text-[10px] text-muted-foreground">checksum</div>
+              <div className="font-mono text-[10px] text-foreground/80 break-all">{c.deterministicChecksum}</div>
+            </div>
+          </div>
+
+          {/* Status banner */}
+          <div className={`rounded-lg border p-3 ${c.failed === 0 && c.replayVerified ? "border-emerald-500/30 bg-emerald-500/5" : "border-destructive/30 bg-destructive/5"}`}>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className={c.failed === 0 && c.replayVerified ? "border-emerald-500/40 text-emerald-700 dark:text-emerald-400" : "border-destructive/40 text-destructive"}>
+                {c.failed === 0 && c.replayVerified ? "ALL SCENARIOS PASS — KERNEL CONFORMANT" : "CONFORMANCE FAILURES DETECTED"}
+              </Badge>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-2">
+              The deterministic checksum is byte-identical across runs. Every scenario was simulated twice with the same seed; replay verification confirms identical results. This is the kernel's contract: identical inputs → identical outputs, always.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Scenario results */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Scenario results ({c.scenarios.length})</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="max-h-96 overflow-y-auto space-y-1">
+            {c.scenarios.map((s) => (
+              <div key={s.id} className="flex items-center gap-2 text-xs rounded-md border px-2.5 py-1.5 hover:bg-muted/30">
+                <span className={`size-2 rounded-full shrink-0 ${s.passed ? "bg-emerald-500" : "bg-destructive"}`} />
+                <span className="font-mono text-foreground shrink-0">{s.id}</span>
+                <span className="text-muted-foreground truncate flex-1">{s.name}</span>
+                <span className="text-[10px] text-muted-foreground shrink-0">
+                  {s.assertionsPassed}/{s.assertionsTotal} assertions
+                </span>
+                {s.replayVerified && (
+                  <Badge variant="outline" className="text-[9px] border-emerald-500/30 text-emerald-700 dark:text-emerald-400 shrink-0">
+                    replay ✓
+                  </Badge>
+                )}
+                <span className="text-[10px] text-muted-foreground shrink-0 tabular-nums">{s.durationMs}ms</span>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Categories */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">What the suite validates</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-1.5">
+            {[
+              "event-replay-determinism", "resource-allocation", "knowledge-lookup",
+              "compiler-correctness", "policy-reproducibility", "coordination",
+              "scheduling", "package-integrity", "extension-lifecycle",
+              "failure-injection", "queue-disciplines", "negotiation",
+              "escalation", "transfer-provenance", "twin-updates",
+            ].map((cat) => (
+              <Badge key={cat} variant="outline" className="text-[9px] font-mono border-green-500/20 text-green-700 dark:text-green-400">
+                {cat}
+              </Badge>
+            ))}
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-2">
+            These validate universal kernel behavior — not cleaning, not mobility, not healthcare.
+            Every future protocol inherits this suite automatically.
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 function ObservabilityTab({ demo }: { demo: KernelDemoResult }) {
   const obs = demo.platformSnapshot?.observability;
   return (
@@ -1179,6 +1293,7 @@ const TABS: readonly TabDef[] = [
   { id: "knowledge", label: "Knowledge", icon: BookOpen },
   { id: "domains", label: "Domains", icon: BoxesIcon },
   { id: "packages", label: "Packages", icon: PackageIcon },
+  { id: "simulation", label: "Simulation", icon: FlaskConical },
   { id: "observability", label: "Observability", icon: Activity },
   { id: "architecture", label: "Architecture", icon: Grid3x3 },
 ];
@@ -1248,6 +1363,7 @@ export function ControlPlaneClient({ demo }: { demo: KernelDemoResult }) {
         {activeTab === "knowledge" && <KnowledgeTab demo={demo} />}
         {activeTab === "domains" && <DomainsTab demo={demo} />}
         {activeTab === "packages" && <PackagesTab demo={demo} />}
+        {activeTab === "simulation" && <SimulationTab demo={demo} />}
         {activeTab === "observability" && <ObservabilityTab demo={demo} />}
         {activeTab === "architecture" && <ArchitectureTab demo={demo} />}
       </main>

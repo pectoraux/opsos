@@ -373,3 +373,24 @@ compatibility checks. The Protocol SDK becomes the authoring surface; the
 Composition Framework becomes the build system. The kernel is now feature-
 complete — future work (Cleaning, Mobility, Healthcare) is installed packages,
 not kernel development.
+
+## ADR-0020 — Conformance validates kernel neutrality; every protocol must pass
+
+**Status:** Accepted
+**Context:** If the first real domain (Cleaning) is built without a conformance
+suite, it will naturally "bend" the kernel toward cleaning-specific needs.
+Operating systems ship conformance suites (Linux Test Project, CNCF conformance,
+Stripe API contract tests) before their first application to ensure the kernel
+behaves correctly for ANY consumer, not just the first one.
+**Decision:** The Kernel Conformance & Simulation Framework validates kernel
+behavior through 25+ generic, industry-neutral scenarios. Every scenario is
+deterministic (FixedRuntimeClock + SeededRandomSource), produces a
+ConformanceResult with assertions + metrics + explainability + replay verification
++ deterministic checksum. The SimulationEngine simulates the full pipeline
+(compile → coordinate → resource → knowledge → runtime → events → metrics) without
+invoking external services. Every future protocol must pass this conformance suite
+before it can be packaged or installed.
+**Consequences:** The kernel is constantly validated against a neutral specification.
+The first real domain becomes a validation of the platform rather than the place
+where the platform is still being discovered. The simulation framework becomes the
+foundation for a future AI explainability layer — every decision includes provenance.

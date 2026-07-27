@@ -49,3 +49,4 @@ export * from "./resource-kernel";
 export * from "./knowledge-kernel";
 export * from "./domain-modeling";
 export * from "./composition";
+export * from "./conformance";

@@ -126,6 +126,11 @@ import type {
   CompositionResult,
   InstallResult,
 } from "@kernel/composition";
+import {
+  createConformanceEngine,
+  REFERENCE_SCENARIOS,
+} from "@kernel/conformance";
+import type { SuiteResult, ConformanceResult } from "@kernel/conformance";
 
 // ── Static catalogs (mirror docs/) ──────────────────────────────────────────
 
@@ -157,6 +162,7 @@ export const KERNEL_MODULES: readonly ModuleInfo[] = [
   { name: "knowledge-kernel", layer: "Knowledge", dependsOn: "shared-kernel", description: "Knowledge Kernel: universal operational knowledge — SOPs, regulations, standards, facts, procedures, ontologies. Protocols register, kernel owns (ADR-0017)." },
   { name: "domain-modeling", layer: "Domain", dependsOn: "shared-kernel, knowledge-kernel", description: "Domain Modeling Framework: semantic layer — entity types, relationships, state machines, measurements, constraints. Domain ≠ Protocol (ADR-0018)." },
   { name: "composition", layer: "Packaging", dependsOn: "shared-kernel, protocol-sdk, domain-modeling", description: "Composition & Operational Package System: turns protocol source into immutable .opspkg. Apps install packages (ADR-0019)." },
+  { name: "conformance", layer: "Conformance", dependsOn: "shared-kernel", description: "Kernel Conformance & Simulation Framework: 25 generic scenarios validating kernel neutrality. Every protocol must pass (ADR-0020)." },
   { name: "api/v1", layer: "Surface", dependsOn: "all modules (facade)", description: "Frozen versioned public API (ADR-0009). Everything outside the kernel imports from here." },
 ];
 
@@ -466,6 +472,27 @@ export interface DemoComposition {
   readonly contentCounts: { readonly kind: string; readonly count: number }[];
 }
 
+export interface DemoScenarioResult {
+  readonly id: string;
+  readonly name: string;
+  readonly category: string;
+  readonly passed: boolean;
+  readonly assertionsPassed: number;
+  readonly assertionsTotal: number;
+  readonly replayVerified: boolean;
+  readonly eventCount: number;
+  readonly durationMs: number;
+}
+
+export interface DemoConformance {
+  readonly totalScenarios: number;
+  readonly passed: number;
+  readonly failed: number;
+  readonly deterministicChecksum: string;
+  readonly replayVerified: boolean;
+  readonly scenarios: readonly DemoScenarioResult[];
+}
+
 export interface KernelDemoResult {
   readonly seed: number;
   readonly baseTime: number;
@@ -483,6 +510,7 @@ export interface KernelDemoResult {
   readonly knowledgeKernel: DemoKnowledgeKernel;
   readonly domainModeling: DemoDomainModeling;
   readonly composition: DemoComposition;
+  readonly conformance: DemoConformance;
   readonly modules: readonly ModuleInfo[];
   readonly primitives: readonly PrimitiveInfo[];
 }
@@ -1512,6 +1540,30 @@ export async function runKernelDemo(): Promise<KernelDemoResult> {
     ] : [],
   };
 
+  // ── 15. Conformance — run the 25-scenario kernel conformance suite ──────
+  // ADR-0020: validates kernel neutrality. Every protocol must pass.
+  const conformanceEngine = createConformanceEngine();
+  const suiteResult: SuiteResult = conformanceEngine.runSuite(REFERENCE_SCENARIOS);
+
+  const conformanceDemo: DemoConformance = {
+    totalScenarios: suiteResult.total,
+    passed: suiteResult.passed,
+    failed: suiteResult.failed,
+    deterministicChecksum: suiteResult.deterministicChecksum,
+    replayVerified: suiteResult.results.every((r) => r.replayVerified),
+    scenarios: suiteResult.results.map((r) => ({
+      id: r.scenarioId,
+      name: r.scenarioName,
+      category: r.assertions[0]?.severity ?? "info",
+      passed: r.passed,
+      assertionsPassed: r.assertions.filter((a) => a.passed).length,
+      assertionsTotal: r.assertions.length,
+      replayVerified: r.replayVerified,
+      eventCount: r.metrics.eventCount,
+      durationMs: r.durationMs,
+    })),
+  };
+
   return {
     seed: SEED,
     baseTime: BASE_TIME,
@@ -1550,6 +1602,7 @@ export async function runKernelDemo(): Promise<KernelDemoResult> {
     knowledgeKernel: knowledgeKernelDemo,
     domainModeling: domainModelingDemo,
     composition: compositionDemo,
+    conformance: conformanceDemo,
     modules: KERNEL_MODULES,
     primitives: CANONICAL_PRIMITIVES,
   };
