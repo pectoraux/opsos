@@ -49,6 +49,7 @@ import {
   Package as PackageIcon,
   FlaskConical,
   Brain as BrainIcon,
+  ShieldCheck,
 } from "lucide-react";
 import type { KernelDemoResult } from "@/lib/kernel-demo";
 
@@ -68,6 +69,7 @@ type TabId =
   | "packages"
   | "simulation"
   | "intelligence"
+  | "governance"
   | "observability"
   | "architecture";
 
@@ -111,6 +113,7 @@ function layerColor(layer: string): string {
     case "Packaging": return "bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/20";
     case "Conformance": return "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20";
     case "Intelligence": return "bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/20";
+    case "Governance": return "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20";
     default: return "bg-muted text-muted-foreground border-border";
   }
 }
@@ -1307,6 +1310,120 @@ function IntelligenceTab({ demo }: { demo: KernelDemoResult }) {
   );
 }
 
+function GovernanceTab({ demo }: { demo: KernelDemoResult }) {
+  const g = demo.governance;
+  return (
+    <div className="space-y-3">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <ShieldCheck className="size-4" /> Platform Governance
+          </CardTitle>
+          <CardDescription>
+            Governs how OpsOS evolves — version compatibility, migration, lifecycle,
+            certification, and policies. Never changes operational behavior (ADR-0022).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Version artifacts */}
+          <div className="space-y-1.5">
+            <div className="text-xs font-medium text-muted-foreground">Version artifacts ({g.versions.length})</div>
+            <div className="space-y-1">
+              {g.versions.map((v, i) => (
+                <div key={i} className="flex items-center gap-2 text-xs rounded-md border px-2.5 py-1.5">
+                  <Badge variant="outline" className="text-[9px] font-mono border-blue-500/20 text-blue-700 dark:text-blue-400">{v.kind}</Badge>
+                  <span className="font-mono text-foreground">{v.id}</span>
+                  <span className="font-mono text-muted-foreground">v{v.version}</span>
+                  <Badge variant="outline" className={`text-[9px] ml-auto ${v.lifecycle === "stable" ? "border-emerald-500/30 text-emerald-700 dark:text-emerald-400" : v.lifecycle === "deprecated" ? "border-amber-500/30 text-amber-700 dark:text-amber-400" : v.lifecycle === "retired" ? "border-destructive/30 text-destructive" : "text-muted-foreground"}`}>
+                    {v.lifecycle}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Compatibility matrix */}
+          <div className="space-y-1.5">
+            <div className="text-xs font-medium text-muted-foreground">Compatibility matrix</div>
+            <div className="space-y-1">
+              {g.compatibilityResults.map((c, i) => (
+                <div key={i} className="flex items-center gap-2 text-xs rounded-md border px-2.5 py-1.5">
+                  <Badge variant="outline" className={`text-[9px] font-mono ${c.compatible ? "border-emerald-500/30 text-emerald-700 dark:text-emerald-400" : "border-destructive/30 text-destructive"}`}>
+                    {c.compatible ? "✓ compatible" : "✗ incompatible"}
+                  </Badge>
+                  <span className="font-mono text-muted-foreground">{c.dimension}</span>
+                  <span className="text-foreground/70 flex-1 truncate">{c.details}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Certifications */}
+          <div className="space-y-1.5">
+            <div className="text-xs font-medium text-muted-foreground">Certifications</div>
+            <div className="space-y-1">
+              {g.certifications.map((c, i) => (
+                <div key={i} className="flex items-center gap-2 text-xs rounded-md border px-2.5 py-1.5">
+                  <Badge variant="outline" className="text-[9px] font-mono border-emerald-500/30 text-emerald-700 dark:text-emerald-400">{c.kind}</Badge>
+                  <span className="font-mono text-foreground">{c.subjectId}</span>
+                  <Badge variant="outline" className="text-[9px] ml-auto border-emerald-500/30 text-emerald-700 dark:text-emerald-400">{c.status}</Badge>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Migration */}
+          {g.migrationPlan && (
+            <div className="space-y-1.5">
+              <div className="text-xs font-medium text-muted-foreground">Migration plan</div>
+              <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-3 space-y-1">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-[9px] font-mono border-blue-500/30 text-blue-700 dark:text-blue-400">{g.migrationPlan.type}</Badge>
+                  <span className="font-mono text-xs">{g.migrationPlan.from} → {g.migrationPlan.to}</span>
+                </div>
+                <div className="text-[10px] text-muted-foreground">
+                  {g.migrationPlan.stepCount} steps · dry-run: <span className={g.migrationPlan.dryRunOk ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}>{g.migrationPlan.dryRunOk ? "✓ passed" : "✗ failed"}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Policies */}
+          <div className="space-y-1.5">
+            <div className="text-xs font-medium text-muted-foreground">Governance policies ({g.policies.length})</div>
+            <div className="space-y-1">
+              {g.policies.map((p, i) => (
+                <div key={i} className="flex items-center gap-2 text-xs rounded-md border px-2.5 py-1.5">
+                  <span className="font-mono text-foreground">{p.kind}</span>
+                  <Badge variant="outline" className={`text-[9px] ml-auto ${p.enforcement === "blocking" ? "border-destructive/30 text-destructive" : p.enforcement === "required" ? "border-amber-500/30 text-amber-700 dark:text-amber-400" : "text-muted-foreground"}`}>
+                    {p.enforcement}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Lifecycle states */}
+          <div className="rounded-lg border border-muted p-3">
+            <div className="text-xs font-medium text-muted-foreground mb-2">Feature lifecycle</div>
+            <div className="flex items-center gap-1.5 text-[11px] font-mono flex-wrap">
+              {g.lifecycleStates.map((s, i) => (
+                <span key={s} className="flex items-center gap-1">
+                  <Badge variant="outline" className={`text-[9px] ${s === "stable" ? "border-emerald-500/30 text-emerald-700 dark:text-emerald-400" : s === "deprecated" ? "border-amber-500/30 text-amber-700 dark:text-amber-400" : s === "retired" ? "border-destructive/30 text-destructive" : "text-muted-foreground"}`}>{s}</Badge>
+                  {i < g.lifecycleStates.length - 1 && <span className="text-muted-foreground">→</span>}
+                </span>
+              ))}
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-2">
+              Stable cannot skip to retired — must pass through deprecated first (Kubernetes-style deprecation policy).
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 function ObservabilityTab({ demo }: { demo: KernelDemoResult }) {
   const obs = demo.platformSnapshot?.observability;
   return (
@@ -1423,6 +1540,7 @@ const TABS: readonly TabDef[] = [
   { id: "packages", label: "Packages", icon: PackageIcon },
   { id: "simulation", label: "Simulation", icon: FlaskConical },
   { id: "intelligence", label: "Intelligence", icon: BrainIcon },
+  { id: "governance", label: "Governance", icon: ShieldCheck },
   { id: "observability", label: "Observability", icon: Activity },
   { id: "architecture", label: "Architecture", icon: Grid3x3 },
 ];
@@ -1494,6 +1612,7 @@ export function ControlPlaneClient({ demo }: { demo: KernelDemoResult }) {
         {activeTab === "packages" && <PackagesTab demo={demo} />}
         {activeTab === "simulation" && <SimulationTab demo={demo} />}
         {activeTab === "intelligence" && <IntelligenceTab demo={demo} />}
+        {activeTab === "governance" && <GovernanceTab demo={demo} />}
         {activeTab === "observability" && <ObservabilityTab demo={demo} />}
         {activeTab === "architecture" && <ArchitectureTab demo={demo} />}
       </main>

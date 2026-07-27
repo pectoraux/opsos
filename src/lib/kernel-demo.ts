@@ -142,6 +142,15 @@ import type {
   Anomaly,
   LearningSignal,
 } from "@kernel/intelligence";
+import {
+  createGovernanceFramework,
+} from "@kernel/governance";
+import type {
+  VersionArtifact,
+  CompatibilityResult,
+  Certification,
+  MigrationPlan,
+} from "@kernel/governance";
 
 // ── Static catalogs (mirror docs/) ──────────────────────────────────────────
 
@@ -175,6 +184,7 @@ export const KERNEL_MODULES: readonly ModuleInfo[] = [
   { name: "composition", layer: "Packaging", dependsOn: "shared-kernel, protocol-sdk, domain-modeling", description: "Composition & Operational Package System: turns protocol source into immutable .opspkg. Apps install packages (ADR-0019)." },
   { name: "conformance", layer: "Conformance", dependsOn: "shared-kernel", description: "Kernel Conformance & Simulation Framework: 25 generic scenarios validating kernel neutrality. Every protocol must pass (ADR-0020)." },
   { name: "intelligence", layer: "Intelligence", dependsOn: "shared-kernel", description: "Operational Intelligence Framework: observes, explains, predicts, recommends. Never performs work. AI providers implement contracts (ADR-0021)." },
+  { name: "governance", layer: "Governance", dependsOn: "shared-kernel", description: "Platform Governance & Evolution: version compatibility, migration, lifecycle, certification, policies. Governs how the platform evolves (ADR-0022)." },
   { name: "api/v1", layer: "Surface", dependsOn: "all modules (facade)", description: "Frozen versioned public API (ADR-0009). Everything outside the kernel imports from here." },
 ];
 
@@ -516,6 +526,15 @@ export interface DemoIntelligence {
   readonly aiContracts: readonly string[];
 }
 
+export interface DemoGovernance {
+  readonly versions: readonly { readonly id: string; readonly kind: string; readonly version: string; readonly lifecycle: string }[];
+  readonly compatibilityResults: readonly { readonly dimension: string; readonly compatible: boolean; readonly details: string }[];
+  readonly certifications: readonly { readonly kind: string; readonly subjectId: string; readonly status: string }[];
+  readonly migrationPlan?: { readonly type: string; readonly from: string; readonly to: string; readonly stepCount: number; readonly dryRunOk: boolean };
+  readonly policies: readonly { readonly kind: string; readonly enforcement: string }[];
+  readonly lifecycleStates: readonly string[];
+}
+
 export interface KernelDemoResult {
   readonly seed: number;
   readonly baseTime: number;
@@ -535,6 +554,7 @@ export interface KernelDemoResult {
   readonly composition: DemoComposition;
   readonly conformance: DemoConformance;
   readonly intelligence: DemoIntelligence;
+  readonly governance: DemoGovernance;
   readonly modules: readonly ModuleInfo[];
   readonly primitives: readonly PrimitiveInfo[];
 }
@@ -1667,6 +1687,104 @@ export async function runKernelDemo(): Promise<KernelDemoResult> {
     aiContracts: ["Reasoner", "Planner", "Predictor", "Recommender", "Optimizer", "Evaluator", "MemoryProvider"],
   };
 
+  // ── 17. Governance — version compatibility, migration, certification ─────
+  // ADR-0022: governs how the platform evolves; never changes operational behavior.
+  const gov = createGovernanceFramework();
+  const govNow = coordClock.now();
+
+  // Register version artifacts.
+  const kernelV1: VersionArtifact = {
+    id: "opsos.kernel", kind: "kernel", version: "1.0.0", lifecycle: "stable",
+    releasedAt: govNow, metadata: {},
+    supportedRanges: [{ kind: "api", range: "^1.0.0" }],
+  };
+  const kernelV12: VersionArtifact = {
+    id: "opsos.kernel", kind: "kernel", version: "1.2.0", lifecycle: "stable",
+    predecessor: "1.0.0", releasedAt: govNow, metadata: {},
+    supportedRanges: [{ kind: "api", range: "^1.0.0" }],
+  };
+  const protocolV1: VersionArtifact = {
+    id: "opsos.protocol.demo", kind: "protocol", version: "1.0.0", lifecycle: "stable",
+    releasedAt: govNow, metadata: {},
+    supportedRanges: [{ kind: "kernel", range: "^1.0.0" }],
+  };
+  const packageV1: VersionArtifact = {
+    id: "opsos.protocol.demo", kind: "package", version: "1.0.0", lifecycle: "stable",
+    releasedAt: govNow, metadata: {},
+  };
+  const domainV1: VersionArtifact = {
+    id: "opsos.domain.generic-operations", kind: "domain", version: "1", lifecycle: "stable",
+    releasedAt: govNow, metadata: {},
+  };
+  gov.registry.registerVersion(kernelV1);
+  gov.registry.registerVersion(kernelV12);
+  gov.registry.registerVersion(protocolV1);
+  gov.registry.registerVersion(packageV1);
+  gov.registry.registerVersion(domainV1);
+
+  // Check compatibility: protocol ↔ kernel.
+  const compatChecks = [
+    {
+      dimension: "protocol-kernel" as const,
+      source: { kind: "protocol" as const, id: "opsos.protocol.demo", version: "1.0.0" },
+      target: { kind: "kernel" as const, id: "opsos.kernel", version: "1.2.0" },
+    },
+    {
+      dimension: "package-application" as const,
+      source: { kind: "package" as const, id: "opsos.protocol.demo", version: "1.0.0" },
+      target: { kind: "application" as const, id: "eks-clean-demo", version: "1.0.0" },
+    },
+  ];
+  const compatResults = gov.compatibilityEngine.check(compatChecks);
+
+  // Certify the protocol.
+  const cert = gov.certificationEngine.certify(
+    "protocol-certified", "opsos.protocol.demo", "1.0.0", "opsos-conformance", "conformance-suite-v1"
+  );
+
+  // Plan a migration (kernel upgrade 1.0.0 → 1.2.0).
+  const migPlan = gov.migrationEngine.plan("1.0.0", "1.2.0", "upgrade");
+  const migDryRun = gov.migrationEngine.dryRun(migPlan);
+
+  // Register a governance policy.
+  gov.registry.registerPolicy({
+    id: "policy-breaking-changes",
+    kind: "breaking-changes",
+    rules: { requireMigrationPath: true, noticePeriodDays: 90 },
+    enforcement: "blocking",
+    description: "Breaking changes require a migration path and 90-day notice.",
+  });
+  gov.registry.registerPolicy({
+    id: "policy-protocol-certification",
+    kind: "protocol-certification",
+    rules: { requireConformancePass: true },
+    enforcement: "required",
+    description: "Protocols must pass the conformance suite before installation.",
+  });
+
+  const governanceDemo: DemoGovernance = {
+    versions: gov.registry.listVersions("opsos.kernel").concat(
+      gov.registry.listVersions("opsos.protocol.demo")
+    ).concat(
+      gov.registry.listVersions("opsos.domain.generic-operations")
+    ).map((v) => ({ id: v.id, kind: v.kind, version: v.version, lifecycle: v.lifecycle })),
+    compatibilityResults: compatResults.map((r) => ({
+      dimension: r.check.dimension,
+      compatible: r.compatible,
+      details: r.report.details,
+    })),
+    certifications: [{ kind: cert.kind, subjectId: cert.subjectId, status: cert.status }],
+    migrationPlan: {
+      type: migPlan.type,
+      from: migPlan.fromVersion,
+      to: migPlan.toVersion,
+      stepCount: migPlan.steps.length,
+      dryRunOk: migDryRun.ok,
+    },
+    policies: gov.registry.listPolicies().map((p) => ({ kind: p.kind, enforcement: p.enforcement })),
+    lifecycleStates: ["experimental", "preview", "stable", "deprecated", "retired"],
+  };
+
   return {
     seed: SEED,
     baseTime: BASE_TIME,
@@ -1707,6 +1825,7 @@ export async function runKernelDemo(): Promise<KernelDemoResult> {
     composition: compositionDemo,
     conformance: conformanceDemo,
     intelligence: intelligenceDemo,
+    governance: governanceDemo,
     modules: KERNEL_MODULES,
     primitives: CANONICAL_PRIMITIVES,
   };

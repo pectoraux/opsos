@@ -422,3 +422,31 @@ tomorrow a domain planner or RL system — none change the kernel. The kernel
 owns WHAT intelligence means; AI providers supply HOW it's produced. Every
 future protocol inherits a complete, explainable intelligence framework
 without introducing any industry-specific AI into the kernel.
+
+## ADR-0022 — Governance defines how the platform evolves; never changes operational behavior
+
+**Status:** Accepted
+**Context:** An operating system that evolves without governance breaks installed
+ecosystems. Kubernetes has API versioning, Stripe has API evolution, Linux has ABI
+stability. Without an equivalent, OpsOS would accumulate breaking changes that
+silently break installed domains, protocols, packages, and applications over time.
+**Decision:** The Platform Governance & Evolution Framework governs how the platform
+evolves. It introduces: immutable `VersionArtifact`s for Kernel/API/Domain/
+Knowledge/Protocol/Package/Application; a `CompatibilityEngine` that checks
+protocol↔kernel, package↔application, application↔domain, protocol↔knowledge,
+protocol↔compiler compatibility with explainable reports; a `MigrationEngine`
+(upgrade/downgrade/rollback/staged-rollout/canary/dry-run); a `FeatureLifecycle`
+(experimental→preview→stable→deprecated→retired — stable cannot skip to retired);
+declarative `GovernancePolicy` (breaking-changes, api-freeze, protocol-certification,
+package-approval, extension-approval, domain-publication, security-review); a
+`Certification` framework (protocol/package/domain/AI-provider/kernel certified —
+references the conformance suite rather than duplicating it); and `EvolutionHistory`
+(version lineage, predecessor/successor, migration/certification/compatibility history).
+Governance NEVER changes operational behavior. All future artifacts participate
+automatically.
+**Consequences:** The platform is operable over years. Breaking changes are
+governed, not accidental. Deprecation follows a mandatory path (stable→deprecated→
+retired). Certifications reference the conformance suite. Migration plans support
+dry-run, canary, and staged rollout. The platform shifts from being built to being
+operated — future work (Cleaning, Mobility, Healthcare) is ecosystem work, not
+platform work.
