@@ -49,6 +49,16 @@ import {
 } from "@kernel/compiler";
 import type { CompilationContext } from "@kernel/compiler";
 import { NoopScheduler } from "@kernel/scheduling";
+import {
+  ProtocolRegistry,
+  DefaultLifecycleManager,
+  demoProtocol,
+} from "@kernel/protocol-sdk";
+import type {
+  ProtocolManifest,
+  ProtocolLifecycleState,
+  LifecycleEvent,
+} from "@kernel/protocol-sdk";
 
 // ── Static catalogs (mirror docs/) ──────────────────────────────────────────
 
@@ -72,6 +82,7 @@ export const KERNEL_MODULES: readonly ModuleInfo[] = [
   { name: "scheduling", layer: "Foundation", dependsOn: "shared-kernel, events, runtime", description: "Schedule, ScheduleSlot, Scheduler PORT + NoopScheduler. No algorithm (ADR-0008)." },
   { name: "extension", layer: "Host", dependsOn: "shared-kernel", description: "Plugin, ExtensionHost, ExtensionRegistry, 9 registration contracts. Protocol host only (ADR-0006)." },
   { name: "compiler", layer: "Compiler", dependsOn: "shared-kernel, runtime, policy, scheduling, extension", description: "Intent → ExecutionGraph. 9-stage replaceable pipeline (ADR-0011). The ONLY component that creates work." },
+  { name: "protocol-sdk", layer: "SDK", dependsOn: "@kernel/api/v1", description: "Protocol SDK: defineProtocol(), manifest validation, lifecycle manager, 14 contribution registries, DSL. Protocols describe, never execute (ADR-0012)." },
   { name: "api/v1", layer: "Surface", dependsOn: "all modules (facade)", description: "Frozen versioned public API (ADR-0009). Everything outside the kernel imports from here." },
 ];
 
@@ -158,6 +169,39 @@ export interface DemoCompiler {
   readonly abortedReason?: string;
 }
 
+export interface DemoProtocolContribution {
+  readonly kind: string;
+  readonly count: number;
+}
+
+export interface DemoProtocolInfo {
+  readonly id: string;
+  readonly name: string;
+  readonly displayName: string;
+  readonly version: string;
+  readonly state: ProtocolLifecycleState;
+  readonly installedAt?: number;
+  readonly contributions: readonly DemoProtocolContribution[];
+  readonly validationErrors: number;
+  readonly validationWarnings: number;
+}
+
+export interface DemoLifecycleEvent {
+  readonly protocolId: string;
+  readonly from: string;
+  readonly to: string;
+  readonly at: number;
+  readonly reason?: string;
+}
+
+export interface DemoProtocolSdk {
+  readonly protocols: readonly DemoProtocolInfo[];
+  readonly lifecycleEvents: readonly DemoLifecycleEvent[];
+  readonly capabilityCount: number;
+  readonly intentTypeCount: number;
+  readonly compilerExtensionCount: number;
+}
+
 export interface KernelDemoResult {
   readonly seed: number;
   readonly baseTime: number;
@@ -167,6 +211,7 @@ export interface KernelDemoResult {
   readonly decision: DemoDecision;
   readonly extension: DemoExtension;
   readonly compiler: DemoCompiler;
+  readonly protocolSdk: DemoProtocolSdk;
   readonly modules: readonly ModuleInfo[];
   readonly primitives: readonly PrimitiveInfo[];
 }
@@ -408,6 +453,59 @@ export async function runKernelDemo(): Promise<KernelDemoResult> {
     abortedReason: compileResult.aborted?.reason,
   };
 
+  // ── 7. Protocol SDK — install the Demo Protocol through its lifecycle ────
+  // ADR-0012: protocols describe work; they never execute it.
+  const protocolRegistry = new ProtocolRegistry();
+  const sdkClock = new FixedRuntimeClock(BASE_TIME + 20_000);
+  const lifecycleManager = new DefaultLifecycleManager({
+    registry: protocolRegistry,
+    clock: sdkClock,
+    registerProtocol: (manifest, host) => {
+      // Run the Demo Protocol's register(host) callback.
+      demoProtocol.register(host);
+    },
+  });
+
+  // Full lifecycle: discover → validate → install → enable
+  const d1 = lifecycleManager.discover(demoProtocol.manifest);
+  const d2 = d1.ok ? lifecycleManager.validate(demoProtocol.manifest.id) : d1;
+  const d3 = d2.ok ? lifecycleManager.install(demoProtocol.manifest.id) : d2;
+  const d4 = d3.ok ? lifecycleManager.enable(demoProtocol.manifest.id) : d3;
+
+  // Validate the manifest for diagnostics display.
+  const { validateProtocolManifest } = await import("@kernel/protocol-sdk");
+  const { KERNEL_VERSION } = await import("@kernel/protocol-sdk");
+  const manifestDiags = validateProtocolManifest(demoProtocol.manifest, KERNEL_VERSION);
+
+  const tracked = lifecycleManager.list();
+  const contributionCounts = protocolRegistry.contributionCounts(demoProtocol.manifest.id);
+
+  const protocolSdkDemo: DemoProtocolSdk = {
+    protocols: tracked.map((p) => ({
+      id: p.manifest.id,
+      name: p.manifest.name,
+      displayName: p.manifest.displayName,
+      version: p.manifest.version,
+      state: p.state,
+      installedAt: p.installedAt,
+      contributions: Object.entries(contributionCounts)
+        .filter(([, n]) => n > 0)
+        .map(([kind, count]) => ({ kind, count })),
+      validationErrors: manifestDiags.filter((d) => d.severity === "error").length,
+      validationWarnings: manifestDiags.filter((d) => d.severity === "warn").length,
+    })),
+    lifecycleEvents: lifecycleManager.events().map((e) => ({
+      protocolId: e.protocolId,
+      from: e.from,
+      to: e.to,
+      at: e.at,
+      reason: e.reason,
+    })),
+    capabilityCount: protocolRegistry.capabilities.list().length,
+    intentTypeCount: protocolRegistry.intents.list().length,
+    compilerExtensionCount: protocolRegistry.compilerExtensions.list().length,
+  };
+
   return {
     seed: SEED,
     baseTime: BASE_TIME,
@@ -438,6 +536,7 @@ export async function runKernelDemo(): Promise<KernelDemoResult> {
       registrationKinds,
     },
     compiler: compilerDemo,
+    protocolSdk: protocolSdkDemo,
     modules: KERNEL_MODULES,
     primitives: CANONICAL_PRIMITIVES,
   };

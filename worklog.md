@@ -475,3 +475,23 @@ Work Log:
 
 Stage Summary:
 - Milestone 2 complete. The kernel now has a frozen canonical language (19 primitives), a frozen versioned public API (@kernel/api/v1), and a staged compiler (Intent → ExecutionGraph) that is the ONLY component creating work. The runtime executes work; it never creates it. The 9-stage pipeline is replaceable end-to-end — protocols will register additional stages via the extension system in Milestone 3 (Protocol SDK). No business logic, no protocols, no applications — the OS philosophy is preserved.
+
+---
+Task ID: M3
+Agent: lead (orchestrator)
+Task: Milestone 3 — Protocol SDK. Turn OpsOS from a kernel into an extensible operating system. Protocols describe work; they never execute it (ADR-0012).
+
+Work Log:
+- Manifest: ProtocolManifest (rich — id/name/displayName/description/version/apiVersion/author/license/homepage/icon/minimumKernelVersion/dependencies/permissions/capabilities/intentTypes/extensions/featureFlags) + deep validation with detailed diagnostics (id format, semver, author, license, kernel-version constraint, dep uniqueness, permission scopes, feature flags).
+- Validation infrastructure: SdkDiagnostic (info/warn/error), pragmatic semver parser + range satisfier (^/~/>=/<=/>/</=, AND ranges), dependency resolver with cycle detection (DFS coloring) + version-satisfiability checks + deterministic lexicographic ordering.
+- Lifecycle: 7 states (discovered→validated→installed→enabled⇄disabled→upgraded→uninstalled) with a legal-transition table; DefaultLifecycleManager is the ONLY component that transitions state; coordinates with ProtocolRegistry to apply/remove contributions atomically; full audit event log.
+- 14 contribution registries (each with descriptor type + in-memory impl): capabilities (rich: inputs/outputs/requirements/qualityMetrics/costModel/tags), intents (schema/validation/defaultPolicies/compilerHooks/requiredCapabilities), compiler-extensions (phase/order/insertion policy — names must NOT start with `kernel.`), workflows, policies+rules, read-models, analytics, ui+navigation, routes, recommendations, event-types, pricing. Master ProtocolRegistry aggregates all; ProtocolHost collects + stamps ownerProtocolId.
+- DSL: defineProtocol(), defineCapability(), defineIntent(), definePolicy()/defineRule(), defineWorkflow(), defineCompilerStage(), defineReadModel() — strong typing, autocomplete, builder pattern, compile-time validation (defineCompilerStage throws on `kernel.` prefix).
+- Demo Protocol: registers exactly 1 of each required kind (capability, intent, policy+rule, workflow, read model, compiler extension) — NO business logic.
+- v1 API: kernel/api/v1/protocol-sdk.ts exports the full SDK surface; added to v1 index. Resolved two export collisions (DiagnosticSeverity aliased to SdkDiagnosticSeverity; CapabilityRequirement aliased to ProtocolCapabilityRequirement).
+- ADR-0012: protocols describe work, never execute; kernel owns lifecycle; compiler stages extend never replace.
+- Inspector: extended kernel-demo to install the Demo Protocol through its full lifecycle (discover→validate→install→enable) and surface protocols + lifecycle trace + registry counts; added a Protocol SDK section (Installed Protocols card with state badge + contributions + validation results + lifecycle trace; Registries card with capability/intent/compiler-extension counts + the 14-kind summary).
+- Verification: `bunx tsc --noEmit` → exit 0. `bun run lint` → passes. dev.log all GET / 200, no console errors. Agent Browser: Protocol SDK section rendered, Demo Protocol shows `enabled` state, lifecycle trace shows discovered→validated→installed→enabled, 14 modules, 19 primitives, footerAtBottom=true, responsive at 390px + 1440px.
+
+Stage Summary:
+- Milestone 3 complete. OpsOS is now an extensible operating system. Someone can write `export default defineProtocol({ manifest: {...} }).register((host) => { host.registerCapability(...) })` and install it. The kernel recognizes it, validates the manifest, resolves dependencies, runs the full lifecycle, and exposes everything it registers in typed registries — all read-only from the deterministic core. The compiler discovers protocol-declared intent types + capabilities automatically. Protocol-supplied compiler stages extend the pipeline but never replace kernel stages. No business logic, no cleaning/delivery/healthcare — the kernel remains domain-independent. Next milestone (M4): Application Runtime, where a protocol becomes branded, tenant-aware applications.

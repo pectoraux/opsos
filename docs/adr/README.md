@@ -142,3 +142,28 @@ Execution` arc is the single, auditable spine of every operational action.
 Work creation is inspectable, replayable, and policy-gated before any side
 effects occur. Protocols extend the compiler by registering stages, not by
 forking it.
+
+## ADR-0012 — Protocols describe work; they never execute it
+
+**Status:** Accepted
+**Context:** The Protocol SDK (Milestone 3) turns OpsOS from a kernel into an
+extensible OS. If protocols could execute work, the kernel's determinism,
+auditability, and replay invariants would be undermined — protocols would
+become runtimes, and the clean layering (`compiler compiles, runtime executes,
+protocols describe, applications present`) would collapse.
+**Decision:** Protocols DESCRIBE work only. They register capabilities, intent
+types, compiler stages (extensions, never replacements — names must not start
+with `kernel.`), policies, rules, workflows, read models, analytics, UI
+extensions, navigation, routes, recommendations, event types, pricing,
+marketplace listings, config schemas, localization, and notifications. The
+`register(host)` callback runs at install/enable time — OUTSIDE the
+deterministic core — and only pushes immutable descriptors. Protocols never
+execute runtime operations, never create `ExecutionGraph`s directly, and never
+mutate the kernel's live state. The kernel owns lifecycle management
+(discovered → validated → installed → enabled ⇄ disabled → upgraded →
+uninstalled); protocols cannot change their own lifecycle.
+**Consequences:** Adding an industry (cleaning, delivery, healthcare) is an act
+of installation, not kernel modification. The kernel remains domain-independent.
+The compiler discovers protocol-declared intent types and capabilities
+automatically. Protocol-supplied compiler stages extend the pipeline but never
+replace kernel stages — the compiler stays deterministic.

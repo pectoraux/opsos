@@ -38,6 +38,7 @@ export * from "./policy";
 // Temporal foundation
 export * from "./scheduling";
 
-// Work creation (compiler) + protocol host (extension)
+// Work creation (compiler) + protocol host (extension) + protocol SDK
 export * from "./compiler";
 export * from "./extensions";
+export * from "./protocol-sdk";

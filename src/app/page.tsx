@@ -41,6 +41,8 @@ function layerColor(layer: string) {
       return "bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/20";
     case "Compiler":
       return "bg-fuchsia-500/10 text-fuchsia-700 dark:text-fuchsia-400 border-fuchsia-500/20";
+    case "SDK":
+      return "bg-teal-500/10 text-teal-700 dark:text-teal-400 border-teal-500/20";
     case "Surface":
       return "bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-500/20";
     default:
@@ -69,10 +71,10 @@ export default async function Home() {
           </div>
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="border-emerald-500/30 text-emerald-700 dark:text-emerald-400">
-              Milestones 1–2
+              Milestones 1–3
             </Badge>
             <Badge variant="secondary" className="hidden sm:inline-flex">
-              Kernel Foundation + Compiler
+              Kernel + Compiler + Protocol SDK
             </Badge>
           </div>
         </div>
@@ -82,14 +84,15 @@ export default async function Home() {
         {/* Hero */}
         <section className="space-y-4">
           <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">
-            Kernel Foundation + Compiler Framework
+            Kernel + Compiler + Protocol SDK
           </h1>
           <p className="text-muted-foreground max-w-3xl text-base sm:text-lg">
-            An immutable, deterministic core with a frozen canonical language
-            (19 primitives), a frozen versioned API (<span className="font-mono text-sm">@kernel/api/v1</span>),
-            and a staged compiler that transforms an <span className="font-medium text-foreground">Intent</span> into an
-            <span className="font-mono text-sm"> ExecutionGraph</span>. OpsOS does not yet know what cleaning,
-            delivery, or healthcare is — industry behavior installs later as protocols, never by modifying the kernel.
+            An extensible operating system. The kernel is a frozen, deterministic core with
+            a 19-primitive canonical language and a versioned API (v1). The compiler turns
+            an <span className="font-medium text-foreground">Intent</span> into an
+            <span className="font-mono text-sm"> ExecutionGraph</span>. The Protocol SDK lets
+            industries extend the kernel through <span className="font-medium text-foreground">registration</span> —
+            they describe work, never execute it. OpsOS itself remains domain-independent.
           </p>
           <div className="flex flex-wrap gap-2 pt-1">
             <Badge variant="outline">{demo.modules.length} kernel modules</Badge>
@@ -424,6 +427,138 @@ export default async function Home() {
           </Card>
         </section>
 
+        {/* Protocol SDK */}
+        <section className="space-y-3">
+          <div className="flex items-baseline justify-between gap-4">
+            <h2 className="text-xl font-semibold">Protocol SDK</h2>
+            <span className="text-xs text-muted-foreground">
+              defineProtocol() · ADR-0012 · protocols describe, never execute
+            </span>
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            {/* Installed protocols + lifecycle */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Installed Protocols</CardTitle>
+                <CardDescription>
+                  The Demo Protocol installed through its full lifecycle:
+                  discovered → validated → installed → enabled.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {demo.protocolSdk.protocols.map((p) => (
+                  <div key={p.id} className="rounded-lg border p-3 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-xs font-medium">{p.id}</span>
+                      <Badge
+                        variant="outline"
+                        className={
+                          p.state === "enabled"
+                            ? "border-emerald-500/40 text-emerald-700 dark:text-emerald-400"
+                            : p.state === "disabled" || p.state === "uninstalled"
+                            ? "border-destructive/40 text-destructive"
+                            : "text-muted-foreground"
+                        }
+                      >
+                        {p.state}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="text-foreground font-medium">{p.displayName}</span>
+                      <span className="font-mono text-muted-foreground">v{p.version}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {p.contributions.map((c) => (
+                        <Badge key={c.kind} variant="secondary" className="font-mono text-[10px]">
+                          {c.kind} <span className="ml-1 tabular-nums">{c.count}</span>
+                        </Badge>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-3 text-[10px] text-muted-foreground pt-1 border-t">
+                      <span>
+                        validation:{" "}
+                        <span className={p.validationErrors > 0 ? "text-destructive" : "text-emerald-600 dark:text-emerald-400"}>
+                          {p.validationErrors} errors
+                        </span>
+                        {", "}
+                        <span className={p.validationWarnings > 0 ? "text-amber-600 dark:text-amber-400" : ""}>
+                          {p.validationWarnings} warnings
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Lifecycle event trace */}
+                <div className="space-y-1.5 pt-2">
+                  <div className="text-xs font-medium text-muted-foreground">Lifecycle trace</div>
+                  <div className="flex flex-wrap items-center gap-1 text-[10px] font-mono">
+                    {demo.protocolSdk.lifecycleEvents.map((e, i) => (
+                      <span key={i} className="flex items-center gap-1">
+                        <Badge variant="outline" className="text-[9px] py-0">
+                          {e.from}→{e.to}
+                        </Badge>
+                        {i < demo.protocolSdk.lifecycleEvents.length - 1 && (
+                          <span className="text-muted-foreground">·</span>
+                        )}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Registries summary */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Registries</CardTitle>
+                <CardDescription>
+                  Live contribution registries populated by the Demo Protocol —
+                  the compiler discovers intent types + capabilities from these
+                  automatically.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="rounded-md border p-2.5">
+                    <div className="text-[10px] text-muted-foreground">capabilities</div>
+                    <div className="font-mono text-lg tabular-nums">{demo.protocolSdk.capabilityCount}</div>
+                  </div>
+                  <div className="rounded-md border p-2.5">
+                    <div className="text-[10px] text-muted-foreground">intent types</div>
+                    <div className="font-mono text-lg tabular-nums">{demo.protocolSdk.intentTypeCount}</div>
+                  </div>
+                  <div className="rounded-md border p-2.5">
+                    <div className="text-[10px] text-muted-foreground">compiler exts</div>
+                    <div className="font-mono text-lg tabular-nums">{demo.protocolSdk.compilerExtensionCount}</div>
+                  </div>
+                </div>
+                <div className="rounded-lg border border-teal-500/20 bg-teal-500/5 p-3 mt-2">
+                  <div className="text-[11px] text-muted-foreground leading-relaxed">
+                    Protocols register <span className="font-mono">capabilities</span>,{" "}
+                    <span className="font-mono">intentTypes</span>,{" "}
+                    <span className="font-mono">compilerStages</span>,{" "}
+                    <span className="font-mono">workflows</span>,{" "}
+                    <span className="font-mono">policies</span>,{" "}
+                    <span className="font-mono">rules</span>,{" "}
+                    <span className="font-mono">readModels</span>,{" "}
+                    <span className="font-mono">analytics</span>,{" "}
+                    <span className="font-mono">uiExtensions</span>,{" "}
+                    <span className="font-mono">navigation</span>,{" "}
+                    <span className="font-mono">apiRoutes</span>,{" "}
+                    <span className="font-mono">recommendations</span>,{" "}
+                    <span className="font-mono">eventTypes</span>, and{" "}
+                    <span className="font-mono">pricing</span> — 14 contribution
+                    kinds. Compiler stages may only <span className="font-medium">extend</span>{" "}
+                    kernel stages (names must not start with <span className="font-mono">kernel.</span>),
+                    never replace them.
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </section>
+
         {/* Modules */}
         <section className="space-y-3">
           <h2 className="text-xl font-semibold">Kernel Modules</h2>
@@ -484,6 +619,7 @@ export default async function Home() {
               { t: "Serializable Policies", d: "Rules use PredicateSpec data, not JS functions — replayable, transportable, auditable." },
               { t: "Protocols as Plugins", d: "Industry behavior installs via the ExtensionHost. The kernel ships host + registry only." },
               { t: "Compiler Creates Work", d: "Intent → compile() → ExecutionGraph → execute() → Execution. The runtime never creates work; the compiler never executes it." },
+              { t: "Protocols Describe", d: "Industries extend the kernel through registration only. Protocols register capabilities, intents, stages, policies — never execute work (ADR-0012)." },
               { t: "Frozen API v1", d: "Everything outside the kernel imports from @kernel/api/v1. Breaking changes require a new version (v2)." },
               { t: "Frozen Canonical Language", d: "19 primitives treated like CPU instructions. Additive evolution only within v1." },
             ].map((i) => (
@@ -552,7 +688,7 @@ export default async function Home() {
       <footer className="mt-auto border-t bg-muted/30">
         <div className="container mx-auto max-w-6xl px-4 py-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-muted-foreground">
           <div>
-            <span className="font-mono text-foreground">OpsOS</span> · Kernel Foundation + Compiler · Milestones 1–2
+            <span className="font-mono text-foreground">OpsOS</span> · Kernel + Compiler + Protocol SDK · Milestones 1–3
           </div>
           <div className="flex items-center gap-3">
             <span>No business logic. No protocols. Kernel only.</span>
