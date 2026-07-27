@@ -342,3 +342,34 @@ Entities automatically become twin-capable and resource-bindable. The compiler
 now understands `Intent → Domain Model → Knowledge → Execution Graph` instead
 of compiling from an untyped world. The kernel never learns what a "room" or
 "patient" is — domains define them.
+
+## ADR-0019 — Applications install operational packages, not protocol source
+
+**Status:** Accepted
+**Context:** A protocol is source definitions (manifest + domain bindings +
+knowledge refs + contributions). Installing source directly means runtime
+validation gaps, no immutability guarantee, no version pinning, no rollback,
+no signing, and no offline distribution. Operating systems deploy immutable
+packages (Docker images, Helm charts, VS Code extensions) — not source.
+**Decision:** The Composition & Operational Package System turns
+(Knowledge + Domain Definition + Protocol) into an immutable, validated,
+versioned `OperationalPackage` (.opspkg) through a deterministic pipeline:
+resolve dependencies → validate → link → bundle → sign → package. The package
+is the deployment artifact: it contains a `PackageManifest` (id, version,
+apiVersion, kernelVersion, domainVersion, protocolVersion, dependencies,
+permissions, checksums, signature, buildMetadata), `PackageContents` (domain
+bindings, knowledge refs, compiler extensions, policies, capabilities,
+workflows, resources, measurements, UI, APIs, analytics, config defaults),
+a `PackageDigest` (deterministic hash), and an optional `PackageSignature`.
+Applications install packages ONLY — the kernel never installs protocol source
+directly. The installer lifecycle (discovered→validated→linked→packaged→
+verified→installed→activated→disabled→removed→rollback→upgrade) operates on
+immutable packages. Package signing is an interface (Signer/Verifier/
+DigestProvider/SignatureStore) with a demo non-cryptographic signer.
+**Consequences:** Protocols feel like first-class OS components, not code
+libraries. Packages support signing/verification, dependency resolution,
+rollback, offline distribution, marketplace publishing, and kernel-API
+compatibility checks. The Protocol SDK becomes the authoring surface; the
+Composition Framework becomes the build system. The kernel is now feature-
+complete — future work (Cleaning, Mobility, Healthcare) is installed packages,
+not kernel development.

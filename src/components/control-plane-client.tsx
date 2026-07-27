@@ -46,6 +46,7 @@ import {
   MapPin,
   BookOpen,
   Boxes as BoxesIcon,
+  Package as PackageIcon,
 } from "lucide-react";
 import type { KernelDemoResult } from "@/lib/kernel-demo";
 
@@ -62,6 +63,7 @@ type TabId =
   | "resources"
   | "knowledge"
   | "domains"
+  | "packages"
   | "observability"
   | "architecture";
 
@@ -102,6 +104,7 @@ function layerColor(layer: string): string {
     case "Resource": return "bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 border-cyan-500/20";
     case "Knowledge": return "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20";
     case "Domain": return "bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/20";
+    case "Packaging": return "bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/20";
     default: return "bg-muted text-muted-foreground border-border";
   }
 }
@@ -957,6 +960,111 @@ function DomainsTab({ demo }: { demo: KernelDemoResult }) {
   );
 }
 
+function PackagesTab({ demo }: { demo: KernelDemoResult }) {
+  const c = demo.composition;
+  return (
+    <div className="space-y-3">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <PackageIcon className="size-4" /> Operational Package
+          </CardTitle>
+          <CardDescription>
+            Protocol source → Composition pipeline → immutable .opspkg → install → activate.
+            Applications install packages, not protocol source (ADR-0019).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Package identity */}
+          <div className="rounded-lg border border-purple-500/20 bg-purple-500/5 p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <Badge variant="outline" className="text-[9px] font-mono border-purple-500/30 text-purple-700 dark:text-purple-400">
+                .opspkg
+              </Badge>
+              <span className="font-mono text-sm font-medium">{c.packageId || "—"}</span>
+              <span className="text-xs text-muted-foreground">v{c.version}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              {c.compiled && <Badge variant="outline" className="text-[9px] border-emerald-500/40 text-emerald-700 dark:text-emerald-400">COMPILED</Badge>}
+              {c.signed && <Badge variant="outline" className="text-[9px] border-blue-500/40 text-blue-700 dark:text-blue-400">SIGNED</Badge>}
+              {c.installed && <Badge variant="outline" className="text-[9px] border-emerald-500/40 text-emerald-700 dark:text-emerald-400">INSTALLED</Badge>}
+              {c.activated && <Badge variant="outline" className="text-[9px] border-emerald-500/40 text-emerald-700 dark:text-emerald-400">ACTIVATED</Badge>}
+            </div>
+            {c.digest && (
+              <div className="text-[10px] text-muted-foreground mt-2">
+                digest: <span className="font-mono text-foreground/80">{c.digest}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Composition pipeline */}
+          <div className="space-y-1.5">
+            <div className="text-xs font-medium text-muted-foreground">Composition pipeline</div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {c.stages.map((s, i) => (
+                <span key={i} className="flex items-center gap-1.5">
+                  <Badge variant="outline" className={`text-[9px] font-mono ${s.ok ? "border-emerald-500/40 text-emerald-700 dark:text-emerald-400" : "border-destructive/40 text-destructive"}`}>
+                    {s.stage}
+                  </Badge>
+                  {i < c.stages.length - 1 && <span className="text-muted-foreground text-xs">→</span>}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Lifecycle events */}
+          {c.lifecycleEvents.length > 0 && (
+            <div className="space-y-1.5">
+              <div className="text-xs font-medium text-muted-foreground">Install lifecycle</div>
+              <div className="flex flex-wrap items-center gap-1 text-[10px] font-mono">
+                {c.lifecycleEvents.map((e, i) => (
+                  <span key={i} className="flex items-center gap-1">
+                    <Badge variant="outline" className="text-[9px] py-0">{e.from}→{e.to}</Badge>
+                    {i < c.lifecycleEvents.length - 1 && <span className="text-muted-foreground">·</span>}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Package contents */}
+          {c.contentCounts.length > 0 && (
+            <div className="space-y-1.5">
+              <div className="text-xs font-medium text-muted-foreground">Package contents</div>
+              <div className="flex flex-wrap gap-1.5">
+                {c.contentCounts.map((cc) => (
+                  <Badge key={cc.kind} variant="secondary" className="font-mono text-[10px]">
+                    {cc.kind} <span className="ml-1 tabular-nums">{cc.count}</span>
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Pipeline note */}
+          <div className="rounded-lg border border-muted p-3">
+            <div className="text-xs font-medium text-muted-foreground mb-1">The deployment artifact</div>
+            <div className="flex items-center gap-1.5 text-[11px] font-mono flex-wrap">
+              <Badge variant="outline" className="text-[9px] border-amber-500/20 text-amber-700 dark:text-amber-400">Knowledge</Badge>
+              <span className="text-muted-foreground">→</span>
+              <Badge variant="outline" className="text-[9px] border-rose-500/20 text-rose-700 dark:text-rose-400">Domain</Badge>
+              <span className="text-muted-foreground">→</span>
+              <Badge variant="outline" className="text-[9px] border-teal-500/20 text-teal-700 dark:text-teal-400">Protocol</Badge>
+              <span className="text-muted-foreground">→</span>
+              <Badge variant="outline" className="text-[9px] border-purple-500/30 text-purple-700 dark:text-purple-400">Package</Badge>
+              <span className="text-muted-foreground">→</span>
+              <Badge variant="outline" className="text-[9px] border-pink-500/20 text-pink-700 dark:text-pink-400">Application</Badge>
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-2">
+              The package is immutable, versioned, validated, signed, and installable. Like a Docker image or Helm chart — not an npm library. Supports rollback, upgrade, offline distribution, and marketplace publishing.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 function ObservabilityTab({ demo }: { demo: KernelDemoResult }) {
   const obs = demo.platformSnapshot?.observability;
   return (
@@ -1059,7 +1167,7 @@ function ArchitectureTab({ demo }: { demo: KernelDemoResult }) {
 
 const TABS: readonly TabDef[] = [
   { id: "overview", label: "Overview", icon: Heart },
-  { id: "protocols", label: "Protocols", icon: Package },
+  { id: "protocols", label: "Protocols", icon: PackageIcon },
   { id: "applications", label: "Applications", icon: Globe },
   { id: "organizations", label: "Organizations", icon: Network },
   { id: "compiler", label: "Compiler", icon: Brain },
@@ -1070,6 +1178,7 @@ const TABS: readonly TabDef[] = [
   { id: "resources", label: "Resources", icon: MapPin },
   { id: "knowledge", label: "Knowledge", icon: BookOpen },
   { id: "domains", label: "Domains", icon: BoxesIcon },
+  { id: "packages", label: "Packages", icon: PackageIcon },
   { id: "observability", label: "Observability", icon: Activity },
   { id: "architecture", label: "Architecture", icon: Grid3x3 },
 ];
@@ -1138,6 +1247,7 @@ export function ControlPlaneClient({ demo }: { demo: KernelDemoResult }) {
         {activeTab === "resources" && <ResourcesTab demo={demo} />}
         {activeTab === "knowledge" && <KnowledgeTab demo={demo} />}
         {activeTab === "domains" && <DomainsTab demo={demo} />}
+        {activeTab === "packages" && <PackagesTab demo={demo} />}
         {activeTab === "observability" && <ObservabilityTab demo={demo} />}
         {activeTab === "architecture" && <ArchitectureTab demo={demo} />}
       </main>

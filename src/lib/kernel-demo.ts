@@ -117,6 +117,15 @@ import {
   defineConstraint,
 } from "@kernel/domain-modeling";
 import type { DomainDefinition } from "@kernel/domain-modeling";
+import {
+  createInMemoryComposition,
+  compileProtocol,
+} from "@kernel/composition";
+import type {
+  OperationalPackage,
+  CompositionResult,
+  InstallResult,
+} from "@kernel/composition";
 
 // ── Static catalogs (mirror docs/) ──────────────────────────────────────────
 
@@ -147,6 +156,7 @@ export const KERNEL_MODULES: readonly ModuleInfo[] = [
   { name: "resource-kernel", layer: "Resource", dependsOn: "shared-kernel", description: "Resource Kernel: universal resource concepts — state, availability, capacity, location, calendar, skills, twin, maintenance, quality. Coordination queries it (ADR-0016)." },
   { name: "knowledge-kernel", layer: "Knowledge", dependsOn: "shared-kernel", description: "Knowledge Kernel: universal operational knowledge — SOPs, regulations, standards, facts, procedures, ontologies. Protocols register, kernel owns (ADR-0017)." },
   { name: "domain-modeling", layer: "Domain", dependsOn: "shared-kernel, knowledge-kernel", description: "Domain Modeling Framework: semantic layer — entity types, relationships, state machines, measurements, constraints. Domain ≠ Protocol (ADR-0018)." },
+  { name: "composition", layer: "Packaging", dependsOn: "shared-kernel, protocol-sdk, domain-modeling", description: "Composition & Operational Package System: turns protocol source into immutable .opspkg. Apps install packages (ADR-0019)." },
   { name: "api/v1", layer: "Surface", dependsOn: "all modules (facade)", description: "Frozen versioned public API (ADR-0009). Everything outside the kernel imports from here." },
 ];
 
@@ -437,6 +447,25 @@ export interface DemoDomainModeling {
   readonly relationships: readonly DemoRelationshipInfo[];
 }
 
+export interface DemoPackageStage {
+  readonly stage: string;
+  readonly ok: boolean;
+  readonly durationMs?: number;
+}
+
+export interface DemoComposition {
+  readonly packageId: string;
+  readonly version: string;
+  readonly compiled: boolean;
+  readonly stages: readonly DemoPackageStage[];
+  readonly digest: string;
+  readonly signed: boolean;
+  readonly installed: boolean;
+  readonly activated: boolean;
+  readonly lifecycleEvents: readonly { from: string; to: string }[];
+  readonly contentCounts: { readonly kind: string; readonly count: number }[];
+}
+
 export interface KernelDemoResult {
   readonly seed: number;
   readonly baseTime: number;
@@ -453,6 +482,7 @@ export interface KernelDemoResult {
   readonly resourceKernel: DemoResourceKernel;
   readonly knowledgeKernel: DemoKnowledgeKernel;
   readonly domainModeling: DemoDomainModeling;
+  readonly composition: DemoComposition;
   readonly modules: readonly ModuleInfo[];
   readonly primitives: readonly PrimitiveInfo[];
 }
@@ -1416,6 +1446,72 @@ export async function runKernelDemo(): Promise<KernelDemoResult> {
     })),
   };
 
+  // ── 14. Composition — compile protocol → .opspkg → install → activate ────
+  // ADR-0019: applications install packages, not protocol source.
+  const composition = createInMemoryComposition();
+  const pkgNow = coordClock.now();
+
+  const pkgCompileResult: CompositionResult = await compileProtocol(
+    {
+      protocolManifest: demoProtocol.manifest,
+      domainDefinition: genericOpsDomain,
+      knowledgeRefs: kk.registry.list().map((ki) => String(ki.id)),
+      contributions: {
+        domainBindings: { asset: genericOpsDomain.id, "work-unit": genericOpsDomain.id, area: genericOpsDomain.id },
+        knowledgeRefs: kk.registry.list().map((ki) => String(ki.id)),
+        compilerExtensions: protocolRegistry.compilerExtensions.list().map((s) => s.name),
+        policies: protocolRegistry.policy.listPolicies().map((p) => String(p.id)),
+        capabilities: protocolRegistry.capabilities.list().map((c) => String(c.id)),
+        workflows: protocolRegistry.workflows.list().map((w) => w.id),
+        resourceRequirements: ["generic"],
+        measurements: ["area"],
+        uiExtensions: [],
+        apiRoutes: [],
+        analytics: [],
+        configDefaults: { defaultLocale: "en" },
+      },
+      now: pkgNow,
+    },
+    { pipeline: composition.pipeline }
+  );
+
+  let pkgInstalled = false;
+  let pkgActivated = false;
+  let pkgLifecycleEvents: { from: string; to: string }[] = [];
+  if (pkgCompileResult.ok && pkgCompileResult.package) {
+    const installResult = await composition.installer.install(pkgCompileResult.package);
+    pkgInstalled = installResult.ok;
+    if (pkgInstalled && pkgCompileResult.package) {
+      const activateResult = composition.installer.activate(
+        pkgCompileResult.package.manifest.id,
+        pkgCompileResult.package.manifest.version
+      );
+      pkgActivated = activateResult.ok;
+      pkgLifecycleEvents = activateResult.lifecycle.map((e) => ({ from: e.from, to: e.to }));
+    }
+  }
+
+  const pkg = pkgCompileResult.package;
+  const compositionDemo: DemoComposition = {
+    packageId: pkg?.manifest.id ?? "",
+    version: pkg?.manifest.version ?? "",
+    compiled: pkgCompileResult.ok,
+    stages: pkgCompileResult.stages.map((s) => ({ stage: s.stage, ok: s.ok, durationMs: s.durationMs })),
+    digest: pkg?.digest.hash ?? "",
+    signed: !!pkg?.signature,
+    installed: pkgInstalled,
+    activated: pkgActivated,
+    lifecycleEvents: pkgLifecycleEvents,
+    contentCounts: pkg ? [
+      { kind: "domainBindings", count: Object.keys(pkg.contents.domainBindings).length },
+      { kind: "knowledgeRefs", count: pkg.contents.knowledgeRefs.length },
+      { kind: "compilerExtensions", count: pkg.contents.compilerExtensions.length },
+      { kind: "policies", count: pkg.contents.policies.length },
+      { kind: "capabilities", count: pkg.contents.capabilities.length },
+      { kind: "workflows", count: pkg.contents.workflows.length },
+    ] : [],
+  };
+
   return {
     seed: SEED,
     baseTime: BASE_TIME,
@@ -1453,6 +1549,7 @@ export async function runKernelDemo(): Promise<KernelDemoResult> {
     resourceKernel: resourceKernelDemo,
     knowledgeKernel: knowledgeKernelDemo,
     domainModeling: domainModelingDemo,
+    composition: compositionDemo,
     modules: KERNEL_MODULES,
     primitives: CANONICAL_PRIMITIVES,
   };
