@@ -59,6 +59,23 @@ import type {
   ProtocolLifecycleState,
   LifecycleEvent,
 } from "@kernel/protocol-sdk";
+import {
+  InMemoryApplicationRegistry,
+  DefaultApplicationLifecycleManager,
+  installApplication,
+  eksCleanDemoApplication,
+  resolveBranding,
+  resolveConfiguration,
+  resolveFeatureFlags,
+  resolveNavigation,
+  resolveRouting,
+  resolveAuthentication,
+  resolveLocalization,
+} from "@kernel/application-runtime";
+import type {
+  ApplicationLifecycleState,
+  Application as AppRecord,
+} from "@kernel/application-runtime";
 
 // ── Static catalogs (mirror docs/) ──────────────────────────────────────────
 
@@ -83,6 +100,8 @@ export const KERNEL_MODULES: readonly ModuleInfo[] = [
   { name: "extension", layer: "Host", dependsOn: "shared-kernel", description: "Plugin, ExtensionHost, ExtensionRegistry, 9 registration contracts. Protocol host only (ADR-0006)." },
   { name: "compiler", layer: "Compiler", dependsOn: "shared-kernel, runtime, policy, scheduling, extension", description: "Intent → ExecutionGraph. 9-stage replaceable pipeline (ADR-0011). The ONLY component that creates work." },
   { name: "protocol-sdk", layer: "SDK", dependsOn: "@kernel/api/v1", description: "Protocol SDK: defineProtocol(), manifest validation, lifecycle manager, 14 contribution registries, DSL. Protocols describe, never execute (ADR-0012)." },
+  { name: "application-runtime", layer: "Runtime", dependsOn: "@kernel/api/v1, protocol-sdk", description: "Application Runtime: installs branded, tenant-aware application instances of protocols. One protocol → many apps (ADR-0013)." },
+  { name: "control-plane", layer: "Control", dependsOn: "@kernel/api/v1", description: "Platform Control Plane: read-only admin surface. Aggregates a PlatformSnapshot from all registries (ADR-0014)." },
   { name: "api/v1", layer: "Surface", dependsOn: "all modules (facade)", description: "Frozen versioned public API (ADR-0009). Everything outside the kernel imports from here." },
 ];
 
@@ -202,6 +221,77 @@ export interface DemoProtocolSdk {
   readonly compilerExtensionCount: number;
 }
 
+export interface DemoApplicationInfo {
+  readonly id: string;
+  readonly name: string;
+  readonly displayName: string;
+  readonly status: ApplicationLifecycleState;
+  readonly protocolId: string;
+  readonly protocolVersion: string;
+  readonly version: string;
+  readonly organizationId: string;
+  readonly tenantId: string;
+  readonly primaryDomain?: string;
+  readonly pathPrefix: string;
+  readonly theme: { primary: string; accent: string; mode: string };
+  readonly logoUrl?: string;
+  readonly featureFlags: Readonly<Record<string, boolean>>;
+  readonly navigationCount: number;
+  readonly localeCount: number;
+  readonly authProviderCount: number;
+  readonly uiExtensionCount: number;
+  readonly configFieldCount: number;
+  readonly versionHistoryCount: number;
+  readonly validationErrors: number;
+  readonly validationWarnings: number;
+}
+
+export interface DemoAppInstallStep {
+  readonly step: string;
+  readonly ok: boolean;
+  readonly reason?: string;
+}
+
+export interface DemoAppRuntime {
+  readonly applications: readonly DemoApplicationInfo[];
+  readonly installSteps: readonly DemoAppInstallStep[];
+  readonly installOk: boolean;
+  readonly resolvedConfig: Readonly<Record<string, unknown>>;
+  readonly resolvedNavigation: readonly { id: string; label: string; order: number }[];
+  readonly resolvedAuthProviders: readonly string[];
+  readonly resolvedDefaultLocale?: string;
+}
+
+export interface DemoPlatformSnapshot {
+  readonly health: {
+    readonly status: string;
+    readonly kernelVersion: string;
+    readonly apiVersion: string;
+    readonly protocolCount: number;
+    readonly applicationCount: number;
+    readonly activeApplicationCount: number;
+    readonly eventStorePosition: number;
+    readonly projectionCount: number;
+    readonly compilerStageCount: number;
+    readonly checks: readonly { name: string; status: string; detail?: string }[];
+  };
+  readonly protocols: readonly DemoProtocolInfo[];
+  readonly applications: readonly DemoApplicationInfo[];
+  readonly organizations: readonly { id: string; name: string; status: string; tenantId: string; memberCount: number; applicationCount: number }[];
+  readonly capabilities: readonly { id: string; capabilityType: string; ownerProtocolId: string; version: string; inputCount: number; outputCount: number; tags: readonly string[] }[];
+  readonly intentTypes: readonly { intentType: string; ownerProtocolId: string; version: string; requiredCapabilityCount: number; compilerHookCount: number }[];
+  readonly workflows: readonly { id: string; name: string; ownerProtocolId: string; stageCount: number; triggerIntentTypes: readonly string[] }[];
+  readonly policies: readonly { id: string; name: string; ownerProtocolId: string; scope: string; effect: string; priority: number; ruleCount: number }[];
+  readonly compilerExtensions: readonly { name: string; ownerProtocolId: string; phase: string; order: number; insertion: string }[];
+  readonly observability: {
+    readonly eventCount: number;
+    readonly decisions: readonly unknown[];
+    readonly metricPoints: readonly unknown[];
+    readonly spanCount: number;
+    readonly auditEvents: readonly unknown[];
+  };
+}
+
 export interface KernelDemoResult {
   readonly seed: number;
   readonly baseTime: number;
@@ -212,6 +302,8 @@ export interface KernelDemoResult {
   readonly extension: DemoExtension;
   readonly compiler: DemoCompiler;
   readonly protocolSdk: DemoProtocolSdk;
+  readonly appRuntime: DemoAppRuntime;
+  readonly platformSnapshot: DemoPlatformSnapshot;
   readonly modules: readonly ModuleInfo[];
   readonly primitives: readonly PrimitiveInfo[];
 }
@@ -506,6 +598,163 @@ export async function runKernelDemo(): Promise<KernelDemoResult> {
     compilerExtensionCount: protocolRegistry.compilerExtensions.list().length,
   };
 
+  // ── 8. Application Runtime — install Eks-Clean Demo (powered by Demo Protocol)
+  // ADR-0013: one protocol → many branded applications. No duplicated logic.
+  const appRegistry = new InMemoryApplicationRegistry();
+  const appClock = new FixedRuntimeClock(BASE_TIME + 30_000);
+  const appLifecycle = new DefaultApplicationLifecycleManager({
+    registry: appRegistry,
+    clock: appClock,
+    getInstalledProtocolVersion: (protocolId: string) => {
+      // The Demo Protocol is installed at version 1.0.0 (from step 7).
+      if (protocolId === demoProtocol.manifest.id) return demoProtocol.manifest.version;
+      return undefined;
+    },
+  });
+
+  const installResult = await installApplication(
+    { lifecycle: appLifecycle, getInstalledProtocolVersion: (id) => (id === demoProtocol.manifest.id ? demoProtocol.manifest.version : undefined) },
+    eksCleanDemoApplication
+  );
+
+  // Resolve the installed application's runtime views (branding, config, features, nav, auth, i18n).
+  const installedApp = appRegistry.get(eksCleanDemoApplication.id);
+  let appRuntimeDemo: DemoAppRuntime;
+  if (installedApp) {
+    const manifest = installedApp.manifest;
+    const branding = resolveBranding(manifest.branding);
+    const config = resolveConfiguration(manifest.configurationSchema, manifest.configuration);
+    const flags = resolveFeatureFlags(manifest.featureFlags);
+    const nav = resolveNavigation(manifest.navigation, { featureFlags: flags });
+    const auth = resolveAuthentication(manifest.authentication);
+    const l10n = resolveLocalization(manifest.localization);
+    const routing = resolveRouting(manifest.id, manifest.routing);
+
+    const { validateApplicationManifest } = await import("@kernel/application-runtime");
+    const appDiags = validateApplicationManifest(manifest, demoProtocol.manifest.version);
+
+    appRuntimeDemo = {
+      applications: [{
+        id: manifest.id,
+        name: manifest.name,
+        displayName: manifest.displayName,
+        status: installedApp.status,
+        protocolId: manifest.protocolId,
+        protocolVersion: manifest.protocolVersion,
+        version: manifest.version,
+        organizationId: String(manifest.organizationId),
+        tenantId: String(manifest.tenantId),
+        primaryDomain: routing.primaryDomain,
+        pathPrefix: manifest.routing.pathPrefix,
+        theme: { primary: branding.theme.primary, accent: branding.theme.accent, mode: branding.theme.mode },
+        logoUrl: branding.logoUrl,
+        featureFlags: flags.values,
+        navigationCount: nav.length,
+        localeCount: l10n.supportedLocales.length,
+        authProviderCount: auth.enabledProviders.length,
+        uiExtensionCount: manifest.uiExtensions.filter((u) => u.enabled).length,
+        configFieldCount: manifest.configurationSchema.fields.length,
+        versionHistoryCount: installedApp.versionHistory.length,
+        validationErrors: appDiags.filter((d) => d.severity === "error").length,
+        validationWarnings: appDiags.filter((d) => d.severity === "warn").length,
+      }],
+      installSteps: installResult.steps,
+      installOk: installResult.ok,
+      resolvedConfig: config.values,
+      resolvedNavigation: nav.map((n) => ({ id: n.id, label: n.label, order: n.order })),
+      resolvedAuthProviders: auth.enabledProviders.map((p) => p.providerId),
+      resolvedDefaultLocale: l10n.defaultLocale,
+    };
+  } else {
+    appRuntimeDemo = {
+      applications: [],
+      installSteps: installResult.steps,
+      installOk: false,
+      resolvedConfig: {},
+      resolvedNavigation: [],
+      resolvedAuthProviders: [],
+    };
+  }
+
+  // ── 9. Platform Control Plane — aggregate a full snapshot ────────────────
+  // ADR-0014: read-only admin surface. Aggregates from all registries.
+  const platformSnapshot: DemoPlatformSnapshot = {
+    health: {
+      status: "healthy",
+      kernelVersion: "1.3.0",
+      apiVersion: "1.0.0",
+      protocolCount: protocolSdkDemo.protocols.length,
+      applicationCount: appRuntimeDemo.applications.length,
+      activeApplicationCount: appRuntimeDemo.applications.filter((a) => a.status === "active").length,
+      eventStorePosition: eventStore.globalPosition(),
+      projectionCount: 1,
+      compilerStageCount: 9 + protocolRegistry.compilerExtensions.list().length,
+      checks: [
+        { name: "event-store", status: "healthy", detail: `${eventStore.globalPosition()} events` },
+        { name: "protocols", status: "healthy", detail: `${protocolSdkDemo.protocols.length} installed` },
+        { name: "applications", status: "healthy", detail: `${appRuntimeDemo.applications.filter((a) => a.status === "active").length} active` },
+        { name: "projections", status: "healthy", detail: "1 registered" },
+        { name: "compiler", status: "healthy", detail: `${9 + protocolRegistry.compilerExtensions.list().length} stages` },
+      ],
+    },
+    protocols: protocolSdkDemo.protocols,
+    applications: appRuntimeDemo.applications,
+    organizations: appRuntimeDemo.applications.map((a) => ({
+      id: a.organizationId,
+      name: a.organizationId,
+      status: "active",
+      tenantId: a.tenantId,
+      memberCount: 0,
+      applicationCount: 1,
+    })),
+    capabilities: protocolRegistry.capabilities.list().map((c) => ({
+      id: String(c.id),
+      capabilityType: c.capabilityType,
+      ownerProtocolId: c.ownerProtocolId,
+      version: c.version,
+      inputCount: c.inputs.length,
+      outputCount: c.outputs.length,
+      tags: c.tags,
+    })),
+    intentTypes: protocolRegistry.intents.list().map((i) => ({
+      intentType: i.intentType,
+      ownerProtocolId: i.ownerProtocolId,
+      version: i.version,
+      requiredCapabilityCount: i.requiredCapabilities.length,
+      compilerHookCount: i.compilerHooks.length,
+    })),
+    workflows: protocolRegistry.workflows.list().map((w) => ({
+      id: w.id,
+      name: w.name,
+      ownerProtocolId: w.ownerProtocolId,
+      stageCount: w.stages.length,
+      triggerIntentTypes: w.triggerIntentTypes,
+    })),
+    policies: protocolRegistry.policy.listPolicies().map((p) => ({
+      id: String(p.id),
+      name: p.name,
+      ownerProtocolId: p.ownerProtocolId,
+      scope: p.scope,
+      effect: p.effect,
+      priority: p.priority,
+      ruleCount: p.ruleIds.length,
+    })),
+    compilerExtensions: protocolRegistry.compilerExtensions.list().map((s) => ({
+      name: s.name,
+      ownerProtocolId: s.ownerProtocolId,
+      phase: s.phase,
+      order: s.order,
+      insertion: s.insertion,
+    })),
+    observability: {
+      eventCount: eventStore.globalPosition(),
+      decisions: [],
+      metricPoints: [],
+      spanCount: 0,
+      auditEvents: [],
+    },
+  };
+
   return {
     seed: SEED,
     baseTime: BASE_TIME,
@@ -537,6 +786,8 @@ export async function runKernelDemo(): Promise<KernelDemoResult> {
     },
     compiler: compilerDemo,
     protocolSdk: protocolSdkDemo,
+    appRuntime: appRuntimeDemo,
+    platformSnapshot,
     modules: KERNEL_MODULES,
     primitives: CANONICAL_PRIMITIVES,
   };

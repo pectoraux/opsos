@@ -495,3 +495,41 @@ Work Log:
 
 Stage Summary:
 - Milestone 3 complete. OpsOS is now an extensible operating system. Someone can write `export default defineProtocol({ manifest: {...} }).register((host) => { host.registerCapability(...) })` and install it. The kernel recognizes it, validates the manifest, resolves dependencies, runs the full lifecycle, and exposes everything it registers in typed registries — all read-only from the deterministic core. The compiler discovers protocol-declared intent types + capabilities automatically. Protocol-supplied compiler stages extend the pipeline but never replace kernel stages. No business logic, no cleaning/delivery/healthcare — the kernel remains domain-independent. Next milestone (M4): Application Runtime, where a protocol becomes branded, tenant-aware applications.
+
+---
+Task ID: M4
+Agent: lead (orchestrator)
+Task: Milestone 4 — Application Runtime. One protocol → many branded applications. No duplicated business logic (ADR-0013).
+
+Work Log:
+- ApplicationManifest: rich immutable manifest (id/name/displayName/org/tenant/protocolId@version/branding/theme/logo/favicon/domains/nav/features/config/auth/localization/uiExtensions/installedModules) analogous to AndroidManifest.xml. Deep validation with diagnostics (id format, semver, protocol binding, org/tenant, routing domain uniqueness, config field uniqueness, feature flag keys, nav ids, locale defaults).
+- Lifecycle: 7 states (draft→installed→configured→active⇄suspended→archived→removed) with legal-transition table; DefaultApplicationLifecycleManager is the ONLY component that transitions state; coordinates with ApplicationRegistry; full audit log; upgrade/rollback with version history.
+- 14 resolvers: branding (theme/logo/email), routing (path-prefix/custom-domains/multi-region + request resolver), configuration (layered merge: protocol→org→app→env with required-field validation), feature flags (per app/org/env), navigation (feature-flag + permission filtered), tenancy, UI extensions, domains, authentication (provider abstraction — kernel owns identity, apps choose providers), localization, storage (port + in-memory), versioning (compatibility checks/upgrade/rollback).
+- ApplicationInstaller: orchestrates compatibility→validate→create→install→configure→activate with rollback on failure.
+- DSL: defineApplication() with strong typing + sane defaults.
+- Demo: Eks-Clean Demo Application powered by Demo Protocol (opsos.protocol.demo@1.0.0) — teal theme, custom domain, layered config, 4 feature flags, 2 auth providers, 4 nav entries, 2 locales, 2 UI extensions. NO cleaning logic.
+- v1 API: kernel/api/v1/application-runtime.ts exports the full surface; added to v1 index.
+- ADR-0013: applications are installed instances of protocols; one protocol → many apps; applications configure + present, never duplicate.
+- Inspector: extended kernel-demo to install Eks-Clean Demo through the full pipeline; added Application Runtime section (install pipeline trace, installed applications card with branding/logo/protocol binding/tenancy/routing/feature flags/counts, resolved runtime card with layered config/feature-flag-filtered nav/auth providers/localization).
+- Verification: tsc exit 0, lint passes. Agent Browser: Application Runtime section rendered, Eks-Clean active, protocol binding visible, install pipeline complete, resolved config/nav/auth present, footerAtBottom=true, responsive. (Note: dev server requires 8GB NODE_OPTIONS due to kernel size — Turbopack OOMs at 4GB.)
+
+Stage Summary:
+- Milestone 4 complete. One protocol can now power many branded applications. The Demo Protocol powers Eks-Clean Demo; the same protocol could power Sparkle Cleaning, CleanPro Nigeria, HomeCare Ghana — four applications, zero duplicated business logic. Applications hide OpsOS completely. Next: Milestone 5 (Platform Control Plane).
+
+---
+Task ID: M5
+Agent: lead (orchestrator)
+Task: Milestone 5 — Platform Control Plane. The admin console (OpsOS's kubectl). Read-only by default, platform-admin only (ADR-0014).
+
+Work Log:
+- control-plane module (kernel/control-plane/): PlatformSnapshot type (full aggregate: health, protocols, applications, organizations, capabilities, intentTypes, workflows, policies, compilerExtensions, projections, readModels, observability, simulation, recentDecisions, compilerTrace); ControlPlaneService port; DefaultControlPlaneService that aggregates from live registries + lifecycle managers + event store + observability handles + projection engine.
+- v1 API: kernel/api/v1/control-plane.ts exports the full surface.
+- ADR-0014: control plane is read-only admin surface; platform-admin only; mutating actions require confirmation; applications continue hiding OpsOS.
+- Inspector → Control Plane: replaced the single-page inspector with a tabbed client component (src/components/control-plane-client.tsx). 10 tabs: Overview (health dashboard + determinism + latest compilation), Protocols (manager + lifecycle trace), Applications (manager + install pipeline + branding + feature flags + resolved runtime), Organizations (manager), Compiler (stage trace + output graph + diagnostics), Events (explorer + replay invariant), Projections (explorer), Registries (capabilities + intents + workflows + policies + compiler extensions), Observability (events + decisions + provenance), Architecture (modules + primitives + invariants).
+- page.tsx simplified to a thin server component: calls runKernelDemo() and passes result to ControlPlaneClient. Client component handles all tab interaction with useState. Only one tab's content is in the render tree at a time — reduces DOM/memory pressure.
+- Extended kernel-demo to produce a platformSnapshot (aggregated from all registries).
+- Added control-plane to KERNEL_MODULES catalog (16 modules now).
+- Verification: tsc exit 0, lint passes. Agent Browser: all 10 tabs render and are clickable (verified Applications→Eks-Clean+install pipeline, Compiler→stage trace+COMPILED, Registries→all 5 sub-views), health dashboard present, no errors, footerAtBottom=true, responsive at 390px (tabs scrollable) + 1440px.
+
+Stage Summary:
+- Milestone 5 complete. OpsOS now feels like a real operating system. The Control Plane is the administrative surface — a tabbed console with health dashboard, protocol/application/organization managers, compiler/events/projections explorers, capability/intent/workflow/policy registries, extension manager, observability views, and architecture reference. Everything is read-only; mutating operations go through lifecycle managers with confirmation. Applications continue hiding OpsOS completely — the control plane is the ONLY surface where "OpsOS" is visible. Next milestones: M6A (Cleaning Domain Model), M6B (Cleaning Protocol), M7 (Eks-Clean Application).

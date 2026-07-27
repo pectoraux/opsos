@@ -167,3 +167,58 @@ of installation, not kernel modification. The kernel remains domain-independent.
 The compiler discovers protocol-declared intent types and capabilities
 automatically. Protocol-supplied compiler stages extend the pipeline but never
 replace kernel stages — the compiler stays deterministic.
+
+## ADR-0013 — Applications are installed instances of protocols
+
+**Status:** Accepted
+**Context:** A protocol is a package of operational behavior; it is not a
+product. One protocol (e.g. Cleaning) should power many branded applications
+(Eks-Clean, Sparkle Cleaning, CleanPro Nigeria, HomeCare Ghana) without
+duplicating business logic. Without an Application Runtime, every "product"
+would fork the protocol, fragmenting behavior and breaking the OS model.
+**Decision:** An Application is an installed, branded, tenant-aware instance of
+a protocol, declared by an immutable `ApplicationManifest` (analogous to
+Android's `AndroidManifest.xml`). The manifest binds to `protocolId@version`
+and declares branding (theme/logo/favicon/email templates), routing
+(path-prefix + custom domains), layered configuration (protocol defaults →
+org → application → environment), feature flags, navigation, authentication
+providers, localization, UI extensions, and installed modules. The kernel owns
+lifecycle (draft → installed → configured → active ⇄ suspended → archived →
+removed); applications cannot change their own lifecycle. Applications NEVER
+contain business logic — they configure and present a protocol. The
+ApplicationInstaller validates protocol compatibility, creates the instance,
+applies configuration, activates, and rolls back on failure. Applications
+hide OpsOS: users never see the kernel.
+**Consequences:** One protocol powers thousands of applications. Adding a
+product is an act of installation + branding, not protocol forking. The kernel
+stays domain-independent (it never reads branding/theme/navigation fields —
+those are consumed by the host application layer). Applications can be
+upgraded, rolled back, suspended, and archived independently of their
+protocol. Multi-tenancy is natural: applications belong to organizations;
+organizations own users; applications never own users.
+
+## ADR-0014 — The Control Plane is a read-only admin surface
+
+**Status:** Accepted
+**Context:** Without an administrative console, installing and managing
+protocols/applications requires ad hoc tooling. Building admin screens later
+means they get bolted on rather than designed in. Operating systems ship their
+management surface first (kubectl, Docker Desktop, Vercel Dashboard).
+**Decision:** The Platform Control Plane is the administrative interface for
+managing OpsOS itself. It is NOT an application and is NOT customer-facing —
+only platform administrators access it. It renders from a read-only
+`PlatformSnapshot` produced by the `ControlPlaneService` (which queries live
+registries + lifecycle managers). Mutating operations (install/upgrade/disable/
+rollback) go through the lifecycle managers with explicit confirmation — the
+control plane never mutates kernel state directly. The control plane surfaces:
+protocols, applications, organizations, runtime/compiler/events/projections
+explorers, capability/intent/workflow/policy registries, extension manager,
+simulation console (replay/step/time-travel), observability dashboards
+(metrics/traces/logs/audit/provenance), upgrade manager, and health dashboard.
+Applications continue hiding OpsOS completely — the control plane is the ONLY
+surface where "OpsOS" is visible.
+**Consequences:** OpsOS feels like a real operating system rather than a
+library. Administrators can inspect every layer (kernel → compiler → protocols
+→ applications) without touching code. Mutations are auditable and confirmed.
+The control plane is the primary inspector — all previous inspector views
+become tabs within it.
