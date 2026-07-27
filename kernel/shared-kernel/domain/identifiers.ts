@@ -48,6 +48,14 @@ export type EscalationId = Brand<string, "EscalationId">;
 export type AllocationId = Brand<string, "AllocationId">;
 export type MatchId = Brand<string, "MatchId">;
 
+// ── Resource primitives (M7 — additive, ADR-0010-compliant) ─────────────────
+export type LocationId = Brand<string, "LocationId">;
+export type CalendarId = Brand<string, "CalendarId">;
+export type CalendarEntryId = Brand<string, "CalendarEntryId">;
+export type CertificationId = Brand<string, "CertificationId">;
+export type TelemetryId = Brand<string, "TelemetryId">;
+export type MaintenanceId = Brand<string, "MaintenanceId">;
+
 // ── Identity & tenancy IDs ──────────────────────────────────────────────────
 export type UserId = Brand<string, "UserId">;
 export type PrincipalId = Brand<string, "PrincipalId">;

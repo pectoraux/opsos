@@ -252,3 +252,33 @@ without knowing what that industry is. A cleaning protocol, mobility protocol,
 and healthcare protocol all flow through the same engines. The marketplace —
 when built — is a protocol-layer concern, not a kernel concern. The
 coordination kernel is the heart of OpsOS: the economy of work.
+
+## ADR-0016 — The Resource Kernel owns what resources ARE
+
+**Status:** Accepted
+**Context:** Every operational industry coordinates resources (cleaners,
+vacuums, drivers, vehicles, doctors, MRI machines, beds, trucks, bins, guards,
+drones). The Coordination Kernel can assign work, but it still doesn't know
+what resources ARE — their state, availability, capacity, location, calendar,
+skills, certification, twin, maintenance, or quality. Without a universal
+resource layer, every protocol would reimplement these concepts, fragmenting
+behavior and breaking the OS model.
+**Decision:** The Resource Kernel owns universal resource concepts: state (idle,
+busy, reserved, committed, offline, maintenance, unavailable, degraded),
+availability (state machine), capacity (current/max/remaining/future), location
+(geometry/region/zone/hierarchy/movement — NOT raw GPS), calendar (bookings,
+blocks, availability windows), skills (capability → requirements →
+certification → quality → confidence), digital twin (every resource has one:
+current state, history, predictions, telemetry), maintenance (scheduled/
+in-progress/completed), and quality metrics. The Coordination Kernel QUERIES
+the Resource Kernel ("give me resources capable of X") rather than owning
+resources itself. Protocols consume the universal abstractions; they do not
+reimplement them. The Resource Kernel sits below the Coordination Kernel in the
+dependency graph.
+**Consequences:** Adding a new industry no longer requires building resource
+management — it's universal. The matching engine becomes dramatically better
+because it can query certified, available, capable resources with remaining
+capacity. Digital twins belong here (not as a standalone concept) — every
+resource has one, giving AI something to reason over. Location is an
+abstraction (not GPS) so mobility uses roads, cleaning uses buildings, and
+healthcare uses hospital wings through the same interface.

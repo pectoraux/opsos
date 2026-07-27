@@ -1,0 +1,160 @@
+   460→Stage Summary:
+   461→- MILESTONE 1 COMPLETE. The OpsOS kernel foundation is built (11 modules, 16 canonical primitives, full architecture docs) AND proven executable via a live, read-only, deterministic kernel inspector. Browser-verified interactivity is the standard of done, and it passes.
+   462→
+   463→---
+   464→Task ID: M2
+   465→Agent: lead (orchestrator)
+   466→Task: Architecture review actions + Milestone 2 (Compiler Framework). (1) Freeze canonical language — add Execution, Observation, Twin. (2) Freeze kernel API v1. (3) Build the Intent → ExecutionGraph compiler.
+   467→
+   468→Work Log:
+   469→- Phase 0a — Canonical language freeze: added ExecutionId/ObservationId/TwinId branded IDs; created execution.ts, observation.ts, twin.ts primitives; updated primitives barrel (now 19, marked FROZEN v1 / ADR-0010); updated docs/primitives.md with the 3 new specs + freeze notice.
+   470→- Phase 0b — API freeze: created kernel/api/v1/ with 12 curated sub-modules (shared-kernel, events, observability, config, runtime, identity, organizations, projections, policy, scheduling, compiler, extensions) + a root index exporting `v1`. Added `@kernel/api` + `@kernel/api/v1` path aliases. Added ADR-0009 (frozen API), ADR-0010 (canonical immutability), ADR-0011 (compiler creates work, runtime executes).
+   471→- Phase 1 — Compiler framework (kernel/compiler/): domain (CompilationContext IR with immutable `with()`, CompilerStage, CompilerPhase, CompilerPipeline port, CompilerResult/StageTrace, CompilerDiagnostic, AbortCompilationError/StageFailedError); 9 kernel-provided replaceable stages (Normalizer → Validator → PolicyEvaluator → CapabilityResolver → Planner → Optimizer → Scheduler → Router → GraphBuilder); application compile() use-case; DefaultCompilerPipeline (deterministic (phase,order,name) ordering, sequential threading, abort-on-error). The scheduler stage uses NoopScheduler (ADR-0008) so the graph builds with empty schedule; the policy-evaluator stage aborts on deny/require-approval.
+   472→- Phase 2 — Inspector: extended src/lib/kernel-demo.ts with a compiler demo (an Intent of type "demo.run" flows through the 9-stage pipeline and emerges as an ExecutionGraph); added a Compiler section to src/app/page.tsx (stage trace table, COMPILED/FAILED badge, node/edge/task/seed metrics, diagnostics stream); updated hero/footer/invariants to reflect M1+M2, 13 modules, 19 primitives, frozen API v1.
+   473→- Fixes along the way: removed determinism-violating Date.now()/Math.random() fallback in InMemoryEventStore (counter-based now); fixed ExecutionGraph import (lives in @kernel/runtime, not shared-kernel); resolved v1 barrel export collisions (revokeRole → revokeMembershipRole for orgs; moved shared-kernel re-exports out of events.ts); eslint config added no-empty-object-type:off for command-marker interfaces.
+   474→- Verification: `bunx tsc --noEmit` → exit 0. `bun run lint` → passes. dev.log all GET / 200, no console errors. Agent Browser: compiler section rendered, all 9 stages present (normalize→validate→evaluate→resolve→plan→optimize→schedule→route→finalize), COMPILED badge, 13 modules, 19 primitives, footerAtBottom=true, responsive at 390px + 1440px.
+   475→
+   476→Stage Summary:
+   477→- Milestone 2 complete. The kernel now has a frozen canonical language (19 primitives), a frozen versioned public API (@kernel/api/v1), and a staged compiler (Intent → ExecutionGraph) that is the ONLY component creating work. The runtime executes work; it never creates it. The 9-stage pipeline is replaceable end-to-end — protocols will register additional stages via the extension system in Milestone 3 (Protocol SDK). No business logic, no protocols, no applications — the OS philosophy is preserved.
+   478→
+   479→---
+   480→Task ID: M3
+   481→Agent: lead (orchestrator)
+   482→Task: Milestone 3 — Protocol SDK. Turn OpsOS from a kernel into an extensible operating system. Protocols describe work; they never execute it (ADR-0012).
+   483→
+   484→Work Log:
+   485→- Manifest: ProtocolManifest (rich — id/name/displayName/description/version/apiVersion/author/license/homepage/icon/minimumKernelVersion/dependencies/permissions/capabilities/intentTypes/extensions/featureFlags) + deep validation with detailed diagnostics (id format, semver, author, license, kernel-version constraint, dep uniqueness, permission scopes, feature flags).
+   486→- Validation infrastructure: SdkDiagnostic (info/warn/error), pragmatic semver parser + range satisfier (^/~/>=/<=/>/</=, AND ranges), dependency resolver with cycle detection (DFS coloring) + version-satisfiability checks + deterministic lexicographic ordering.
+   487→- Lifecycle: 7 states (discovered→validated→installed→enabled⇄disabled→upgraded→uninstalled) with a legal-transition table; DefaultLifecycleManager is the ONLY component that transitions state; coordinates with ProtocolRegistry to apply/remove contributions atomically; full audit event log.
+   488→- 14 contribution registries (each with descriptor type + in-memory impl): capabilities (rich: inputs/outputs/requirements/qualityMetrics/costModel/tags), intents (schema/validation/defaultPolicies/compilerHooks/requiredCapabilities), compiler-extensions (phase/order/insertion policy — names must NOT start with `kernel.`), workflows, policies+rules, read-models, analytics, ui+navigation, routes, recommendations, event-types, pricing. Master ProtocolRegistry aggregates all; ProtocolHost collects + stamps ownerProtocolId.
+   489→- DSL: defineProtocol(), defineCapability(), defineIntent(), definePolicy()/defineRule(), defineWorkflow(), defineCompilerStage(), defineReadModel() — strong typing, autocomplete, builder pattern, compile-time validation (defineCompilerStage throws on `kernel.` prefix).
+   490→- Demo Protocol: registers exactly 1 of each required kind (capability, intent, policy+rule, workflow, read model, compiler extension) — NO business logic.
+   491→- v1 API: kernel/api/v1/protocol-sdk.ts exports the full SDK surface; added to v1 index. Resolved two export collisions (DiagnosticSeverity aliased to SdkDiagnosticSeverity; CapabilityRequirement aliased to ProtocolCapabilityRequirement).
+   492→- ADR-0012: protocols describe work, never execute; kernel owns lifecycle; compiler stages extend never replace.
+   493→- Inspector: extended kernel-demo to install the Demo Protocol through its full lifecycle (discover→validate→install→enable) and surface protocols + lifecycle trace + registry counts; added a Protocol SDK section (Installed Protocols card with state badge + contributions + validation results + lifecycle trace; Registries card with capability/intent/compiler-extension counts + the 14-kind summary).
+   494→- Verification: `bunx tsc --noEmit` → exit 0. `bun run lint` → passes. dev.log all GET / 200, no console errors. Agent Browser: Protocol SDK section rendered, Demo Protocol shows `enabled` state, lifecycle trace shows discovered→validated→installed→enabled, 14 modules, 19 primitives, footerAtBottom=true, responsive at 390px + 1440px.
+   495→
+   496→Stage Summary:
+   497→- Milestone 3 complete. OpsOS is now an extensible operating system. Someone can write `export default defineProtocol({ manifest: {...} }).register((host) => { host.registerCapability(...) })` and install it. The kernel recognizes it, validates the manifest, resolves dependencies, runs the full lifecycle, and exposes everything it registers in typed registries — all read-only from the deterministic core. The compiler discovers protocol-declared intent types + capabilities automatically. Protocol-supplied compiler stages extend the pipeline but never replace kernel stages. No business logic, no cleaning/delivery/healthcare — the kernel remains domain-independent. Next milestone (M4): Application Runtime, where a protocol becomes branded, tenant-aware applications.
+   498→
+   499→---
+   500→Task ID: M4
+   501→Agent: lead (orchestrator)
+   502→Task: Milestone 4 — Application Runtime. One protocol → many branded applications. No duplicated business logic (ADR-0013).
+   503→
+   504→Work Log:
+   505→- ApplicationManifest: rich immutable manifest (id/name/displayName/org/tenant/protocolId@version/branding/theme/logo/favicon/domains/nav/features/config/auth/localization/uiExtensions/installedModules) analogous to AndroidManifest.xml. Deep validation with diagnostics (id format, semver, protocol binding, org/tenant, routing domain uniqueness, config field uniqueness, feature flag keys, nav ids, locale defaults).
+   506→- Lifecycle: 7 states (draft→installed→configured→active⇄suspended→archived→removed) with legal-transition table; DefaultApplicationLifecycleManager is the ONLY component that transitions state; coordinates with ApplicationRegistry; full audit log; upgrade/rollback with version history.
+   507→- 14 resolvers: branding (theme/logo/email), routing (path-prefix/custom-domains/multi-region + request resolver), configuration (layered merge: protocol→org→app→env with required-field validation), feature flags (per app/org/env), navigation (feature-flag + permission filtered), tenancy, UI extensions, domains, authentication (provider abstraction — kernel owns identity, apps choose providers), localization, storage (port + in-memory), versioning (compatibility checks/upgrade/rollback).
+   508→- ApplicationInstaller: orchestrates compatibility→validate→create→install→configure→activate with rollback on failure.
+   509→- DSL: defineApplication() with strong typing + sane defaults.
+   510→- Demo: Eks-Clean Demo Application powered by Demo Protocol (opsos.protocol.demo@1.0.0) — teal theme, custom domain, layered config, 4 feature flags, 2 auth providers, 4 nav entries, 2 locales, 2 UI extensions. NO cleaning logic.
+   511→- v1 API: kernel/api/v1/application-runtime.ts exports the full surface; added to v1 index.
+   512→- ADR-0013: applications are installed instances of protocols; one protocol → many apps; applications configure + present, never duplicate.
+   513→- Inspector: extended kernel-demo to install Eks-Clean Demo through the full pipeline; added Application Runtime section (install pipeline trace, installed applications card with branding/logo/protocol binding/tenancy/routing/feature flags/counts, resolved runtime card with layered config/feature-flag-filtered nav/auth providers/localization).
+   514→- Verification: tsc exit 0, lint passes. Agent Browser: Application Runtime section rendered, Eks-Clean active, protocol binding visible, install pipeline complete, resolved config/nav/auth present, footerAtBottom=true, responsive. (Note: dev server requires 8GB NODE_OPTIONS due to kernel size — Turbopack OOMs at 4GB.)
+   515→
+   516→Stage Summary:
+   517→- Milestone 4 complete. One protocol can now power many branded applications. The Demo Protocol powers Eks-Clean Demo; the same protocol could power Sparkle Cleaning, CleanPro Nigeria, HomeCare Ghana — four applications, zero duplicated business logic. Applications hide OpsOS completely. Next: Milestone 5 (Platform Control Plane).
+   518→
+   519→---
+   520→Task ID: M5
+   521→Agent: lead (orchestrator)
+   522→Task: Milestone 5 — Platform Control Plane. The admin console (OpsOS's kubectl). Read-only by default, platform-admin only (ADR-0014).
+   523→
+   524→Work Log:
+   525→- control-plane module (kernel/control-plane/): PlatformSnapshot type (full aggregate: health, protocols, applications, organizations, capabilities, intentTypes, workflows, policies, compilerExtensions, projections, readModels, observability, simulation, recentDecisions, compilerTrace); ControlPlaneService port; DefaultControlPlaneService that aggregates from live registries + lifecycle managers + event store + observability handles + projection engine.
+   526→- v1 API: kernel/api/v1/control-plane.ts exports the full surface.
+   527→- ADR-0014: control plane is read-only admin surface; platform-admin only; mutating actions require confirmation; applications continue hiding OpsOS.
+   528→- Inspector → Control Plane: replaced the single-page inspector with a tabbed client component (src/components/control-plane-client.tsx). 10 tabs: Overview (health dashboard + determinism + latest compilation), Protocols (manager + lifecycle trace), Applications (manager + install pipeline + branding + feature flags + resolved runtime), Organizations (manager), Compiler (stage trace + output graph + diagnostics), Events (explorer + replay invariant), Projections (explorer), Registries (capabilities + intents + workflows + policies + compiler extensions), Observability (events + decisions + provenance), Architecture (modules + primitives + invariants).
+   529→- page.tsx simplified to a thin server component: calls runKernelDemo() and passes result to ControlPlaneClient. Client component handles all tab interaction with useState. Only one tab's content is in the render tree at a time — reduces DOM/memory pressure.
+   530→- Extended kernel-demo to produce a platformSnapshot (aggregated from all registries).
+   531→- Added control-plane to KERNEL_MODULES catalog (16 modules now).
+   532→- Verification: tsc exit 0, lint passes. Agent Browser: all 10 tabs render and are clickable (verified Applications→Eks-Clean+install pipeline, Compiler→stage trace+COMPILED, Registries→all 5 sub-views), health dashboard present, no errors, footerAtBottom=true, responsive at 390px (tabs scrollable) + 1440px.
+   533→
+   534→Stage Summary:
+   535→- Milestone 5 complete. OpsOS now feels like a real operating system. The Control Plane is the administrative surface — a tabbed console with health dashboard, protocol/application/organization managers, compiler/events/projections explorers, capability/intent/workflow/policy registries, extension manager, observability views, and architecture reference. Everything is read-only; mutating operations go through lifecycle managers with confirmation. Applications continue hiding OpsOS completely — the control plane is the ONLY surface where "OpsOS" is visible. Next milestones: M6A (Cleaning Domain Model), M6B (Cleaning Protocol), M7 (Eks-Clean Application).
+   536→
+   537→---
+   538→Task ID: M6-engines
+   539→Agent: coordination-engines
+   540→Task: Build the Coordination Kernel engines (matching, negotiation, reservation, commitment, assignment, queue, transfer, escalation) + protocol extension ports + in-memory implementations + coordinate-work use-case.
+   541→
+   542→Work Log:
+   543→- Read worklog (M1–M5 frozen records) and the 14 coordination primitives in `kernel/shared-kernel/domain/primitives/coordination.ts`. Confirmed the 33-primitive catalog (19 from M1–M5 + 14 M6 coordination primitives) is FROZEN.
+   544→- Read `identifiers.ts` (branded IDs incl. OfferId/BidId/ReservationId/CommitmentId/AssignmentId/TransferId/QueueId/EscalationId/AllocationId/MatchId), `result.ts`, `errors.ts` (IllegalStateError), `value-objects/index.ts` (Priority/Quantity/Constraint/PredicateSpec/ObjectiveFunction/UnknownRecord/ProvenanceRef), `temporal.ts` (TemporalWindow), `operational.ts` (Demand/Resource/Capability), and the `RandomSource`/`RuntimeClock` ports. Confirmed the determinism rules: `Date.now()` and `Math.random()` are forbidden in domain/application; all time flows through `now`, all randomness through a seeded `RandomSource`.
+   545→- Surveyed an existing module (`@kernel/scheduling`) for conventions: JSDoc preamble on every file, `interfaces/ → application/ → domain/` + `infrastructure/ → application/ → domain/` layering, `domain/` depends ONLY on `@kernel/shared-kernel`, `now` passed explicitly so the domain layer never imports `@kernel/runtime`.
+   546→- Built `domain/exchange-lifecycle.ts`: 11-state FROZEN lifecycle (`created → published → matched → reserved → committed → assigned → accepted → executing → completed → released | cancelled`), `LEGAL_TRANSITIONS` table, pure `canTransition(from,to)` + `isTerminal(state)`, `EXCHANGE_STATE_ORDER`. Self-loops treated as legal no-ops.
+   547→- Built `domain/exchange-events.ts`: 25 typed event-payload interfaces (`OfferCreated`, `OfferPublished`, `BidSubmitted`, `MatchComputed`, `MatchSelected`, `ReservationCreated/Confirmed/Released/Expired`, `CommitmentCreated/Fulfilled/Released`, `AssignmentAccepted/Rejected/Completed`, `TransferInitiated/Completed`, `QueueEntryEnqueued/Dequeued`, `EscalationTriggered/Acknowledged/Resolved`, `NegotiationStarted/Ended`, `OptimizationObjectiveEvaluated`) + `CoordinationEvent` discriminated union (by `kind`) + `COORDINATION_EVENT_KINDS` literal array. All carry `tenantId`, `correlationId`, `occurredAt` (clock-sourced).
+   548→- Built `domain/optimization.ts`: `OptimizationContext`, `OptimizationEvaluator`, `OptimizationRegistry` PORT, `DEFAULT_OBJECTIVE_NAME = "kernel.constraint-count"`, and a pure `constraintCountEvaluator` (score = matched − violated + (matched>0 ? 1 : 0)).
+   549→- Built the 8 engine PORTS in `domain/`:
+   550→  * `matching-engine.ts` — `MatchRequest` (demandId, capabilityType, quantity, window, constraints, resources, capabilities, policies, optimizationObjective?, now), `MatchResult` (candidates ranked, selected?, diagnostics), `MatchPolicy` (name, predicate: PredicateSpec, effect: include|exclude|prefer|penalize), `MatchingEngine` PORT. Exported scoring constants (`PREFER_BONUS`, `PENALIZE_PENALTY`, `MATCHED_CONSTRAINT_WEIGHT`, `VIOLATED_CONSTRAINT_PENALTY`) + `computeMatchId` + `MatchCandidate`.
+   551→  * `negotiation-engine.ts` — `NegotiationOutcome` (accepted|rejected|countered|expired|timeout), `NegotiationRound`, `NegotiationState` (open|accepted|rejected|expired), `NegotiationRules` (maxRounds, timeoutMs, autoAcceptPolicy?, autoRejectPolicy?), `NegotiationEngine` PORT (start/submitBid/timeout).
+   552→  * `reservation-engine.ts` — `ReservationCreateInput`, `ReservationEngine` PORT (create/confirm/release/expire). `confirm` mints the `commitmentId` that bridges into the CommitmentEngine.
+   553→  * `commitment-engine.ts` — `CommitmentEngine` PORT (create/fulfill/release). `create` consumes a confirmed Reservation and materialises a Commitment carrying the reservation's `commitmentId` as its `id` + `reservationId` lineage.
+   554→  * `assignment-engine.ts` — `AssignmentRequest` (taskId, executionPlanId?, resourceId, capabilityId, commitmentId?, tenantId, provenance, now), `AssignmentEngine` PORT (assign/accept/decline/complete/cancel).
+   555→  * `queue-engine.ts` — `QueueEnqueueInput`, `QueueDequeueResult`, `QueueEngineContext` (carries optional `RandomSource` for the weighted discipline), `QueueEngine` PORT (create/enqueue/dequeue/peek/length), `DEFAULT_QUEUE_WEIGHT = 1`. Four disciplines: fifo, priority (level DESC, then insertion), weighted (seeded-random OR deterministic heaviest-first fallback), deadline (earliest first; undefined sinks).
+   556→  * `transfer-engine.ts` — `TransferEngine` PORT (initiate/accept/complete/reject).
+   557→  * `escalation-engine.ts` — `EscalationPolicy` (trigger, condition: PredicateSpec, target, severity, reason?), `EscalationContext` (tenantId, subjectType, subjectId, attributes, provenance), `EscalationEngine` PORT (evaluate/acknowledge/resolve). `evaluate` returns the FIRST triggered escalation.
+   558→- Built `domain/protocol-extensions.ts`: the 8 protocol-extension PORTS — `MatchingStrategy`, `NegotiationRulesProvider`, `QueuePolicyProvider`, `ReservationPolicyProvider`, `EscalationPolicyProvider`, `OptimizationObjectiveProvider`, `CapabilityRanking`, `AvailabilityModel` — plus a `ProtocolExtensions` bundle and `NO_PROTOCOL_EXTENSIONS` empty default.
+   559→- Built `domain/index.ts` barrel re-exporting the full domain surface (lifecycle, events, optimization, 8 engine ports, 8 protocol-extension ports).
+   560→- Built `application/coordinate-work.ts` — the spine use-case: `CoordinateWorkInput` (demand, resources, capabilities, matchPolicies, taskId, executionPlanId?, reservationTtlMs, tenantId, correlationId, provenance, capabilityType?, now) → `CoordinateWorkResult` (outcome: assigned|no-match|no-capacity|failed, match?, matchResult, reservation?, commitment?, assignment?, diagnostics). `CoordinateWorkUseCase` orchestrates: MatchingEngine.match → (no match → return) → ReservationEngine.create+confirm → CommitmentEngine.create → AssignmentEngine.assign. Pure; same `now` for every step; engines injected at construction.
+   561→- Built `application/index.ts` barrel.
+   562→- Built 8 in-memory implementations in `infrastructure/`:
+   563→  * `InMemoryMatchingEngine` — filters `resources × capabilities` by capabilityType, classifies constraints via a tiny built-in predicate evaluator (`attr-eq/ne/gt/lt`, `capability-has`, `min-quantity`, `within-window`; unknown kinds default to SATISFIED), applies policies (`include`/`exclude` drop, `prefer` +1000, `penalize` −1000), scores (matched×100 − violated×50 + prefer − penalize), ranks by score DESC with `resourceId` lexicographic tie-break (the determinism anchor), stamps ranks, selects top with status `selected`. Deterministic `MatchId = match#<demandId>#<resourceId>#<capabilityId>`.
+   564→  * `InMemoryNegotiationEngine` — pure state machine: timeout check (now − startedAt > timeoutMs → expired), autoAccept/autoReject via the built-in evaluator (unknown ops → false for accept, true for reject — fail-safe), default counter, maxRounds exhaustion → countered, explicit timeout() → timeout outcome. No state between calls.
+   565→  * `InMemoryReservationEngine` — create (pending, expiresAt = now + ttlMs), confirm (→ confirmed + minted commitmentId; IllegalStateError if not pending or expired), release, expire (idempotent on terminal). Per-instance counter mints `resv#…` / `cmmt#…` ids.
+   566→  * `InMemoryCommitmentEngine` — create (precondition: reservation.confirmed + commitmentId set; carries reservationId lineage), fulfill, release (IllegalStateError on wrong status).
+   567→  * `InMemoryAssignmentEngine` — assign (pending), accept, decline, complete, cancel with full status guards. Ids `asgn#<taskId>#<now>#<seq>`.
+   568→  * `InMemoryQueueEngine` — create, enqueue (stamps enqueuedAt if absent), dequeue (returns {queue, entry}), peek, length. Discipline pickers: FIFO (earliest enqueuedAt), priority (max level, then earliest), weighted (seeded RandomSource → weighted-random; fallback → heaviest-first then earliest-enqueuedAt — the documented deterministic round-robin-within-weight-classes degenerate), deadline (earliest; undefined sinks; ties by enqueuedAt). Per-instance counter mints `queue#…` ids.
+   569→  * `InMemoryTransferEngine` — initiate/accept/complete/reject with status guards. Ids `xfer#…`.
+   570→  * `InMemoryEscalationEngine` — evaluate walks policies in order, FIRST whose `condition` holds against `context.attributes` mints an Escalation (status triggered); unknown predicate ops → false (fail-safe). acknowledge (triggered→acknowledged), resolve (non-terminal→resolved). Ids `esc#…`.
+   571→- Built `infrastructure/index.ts` barrel: re-exports the 8 engine classes + `InMemoryCoordinationEngines` bundle interface + `createInMemoryCoordinationEngines()` helper.
+   572→- Built `interfaces/index.ts` (public surface barrel: `export * from "../domain"; export * from "../application"; export * from "../infrastructure"`) and root `index.ts` (`export * from "./interfaces"`).
+   573→- Fixed two compile errors found by `bunx tsc --noEmit`:
+   574→  * `attr-*/` inside JSDoc comments in `in-memory-negotiation-engine.ts` was being parsed as the comment terminator `*/` — reworded to enumerate ops without the trailing slash.
+   575→  * `protocol-extensions.ts` imported `Match` from `./matching-engine`, but `Match` is only imported (not re-exported) there — switched to import `Match` directly from `@kernel/shared-kernel`.
+   576→  * `infrastructure/index.ts` used re-exported class names inside the `InMemoryCoordinationEngines` interface and `createInMemoryCoordinationEngines()` body — switched to `import` + `export {…}` so the names are in local scope.
+   577→- Re-ran `bunx tsc --noEmit 2>&1 | grep "coordination"` → empty. `bunx tsc --noEmit 2>&1 | grep -v "skills/" | head` → empty. Determinism rules verified: no `Date.now()`, no `Math.random()` anywhere; all time via `now`; weighted queue uses the seeded `RandomSource` from `@kernel/shared-kernel` with a deterministic heaviest-first fallback.
+   578→
+   579→Stage Summary:
+   580→- Files created (25): under `kernel/coordination/`
+   581→  * `domain/`: exchange-lifecycle.ts, exchange-events.ts, optimization.ts, matching-engine.ts, negotiation-engine.ts, reservation-engine.ts, commitment-engine.ts, assignment-engine.ts, queue-engine.ts, transfer-engine.ts, escalation-engine.ts, protocol-extensions.ts, index.ts (13 files)
+   582→  * `application/`: coordinate-work.ts, index.ts (2 files)
+   583→  * `infrastructure/`: in-memory-matching-engine.ts, in-memory-negotiation-engine.ts, in-memory-reservation-engine.ts, in-memory-commitment-engine.ts, in-memory-assignment-engine.ts, in-memory-queue-engine.ts, in-memory-transfer-engine.ts, in-memory-escalation-engine.ts, index.ts (9 files)
+   584→  * `interfaces/index.ts` (1 file)
+   585→  * `index.ts` (root entry, 1 file)
+   586→- Public surface from `@kernel/coordination`:
+   587→  * Lifecycle: `ExchangeState`, `LEGAL_TRANSITIONS`, `TERMINAL_EXCHANGE_STATES`, `EXCHANGE_STATE_ORDER`, `canTransition`, `isTerminal`.
+   588→  * Events: `CoordinationEvent` union + 25 per-kind payload types + `COORDINATION_EVENT_KINDS`.
+   589→  * Optimization: `OptimizationContext`, `OptimizationEvaluator`, `OptimizationRegistry`, `DEFAULT_OBJECTIVE_NAME`, `constraintCountEvaluator`.
+   590→  * Engine PORTs (8): `MatchingEngine`/`MatchRequest`/`MatchResult`/`MatchPolicy`/`MatchCandidate` + scoring constants + `computeMatchId`; `NegotiationEngine`/`NegotiationState`/`NegotiationRound`/`NegotiationRules`/`NegotiationOutcome`; `ReservationEngine`/`ReservationCreateInput`; `CommitmentEngine`; `AssignmentEngine`/`AssignmentRequest`; `QueueEngine`/`QueueEnqueueInput`/`QueueDequeueResult`/`QueueEngineContext`/`DEFAULT_QUEUE_WEIGHT`; `TransferEngine`; `EscalationEngine`/`EscalationPolicy`/`EscalationContext`.
+   591→  * Protocol extensions (8): `MatchingStrategy`, `NegotiationRulesProvider`, `QueuePolicyProvider`, `ReservationPolicyProvider`, `EscalationPolicyProvider`, `OptimizationObjectiveProvider`, `CapabilityRanking`, `AvailabilityModel` + `ProtocolExtensions` + `NO_PROTOCOL_EXTENSIONS`.
+   592→  * Application: `CoordinateWork` PORT + `CoordinateWorkUseCase` class + `CoordinateWorkInput`/`CoordinateWorkResult`/`CoordinateWorkOutcome`.
+   593→  * Infrastructure: 8 `InMemory*Engine` classes + `InMemoryCoordinationEngines` bundle interface + `createInMemoryCoordinationEngines()` helper.
+   594→- Decisions:
+   595→  * The matching engine ships a TINY generic built-in predicate evaluator (eq/ne/gt/lt/gte/lte/in/and/or/not/attr-*/capability-has) so the kernel compiles and runs end-to-end. Protocol-specific predicates evaluate to a documented fallback (true for `include`/`exclude` so they're no-ops; true for `autoRejectPolicy` so it fails-safe; false for `autoAcceptPolicy` so it never short-circuits; false for `EscalationPolicy.condition` so unknown conditions never trigger). Protocols install richer evaluators via the extension system — the kernel NEVER interprets business-specific predicates.
+   596→  * Unknown `Constraint` kinds default to SATISFIED (the kernel cannot interpret protocol-specific constraints).
+   597→  * Reservation `confirm` mints the `commitmentId`; the CommitmentEngine's `create` consumes that exact id, so the lineage reservation → commitment is auditable.
+   598→  * `coordinate-work` passes the same `now` to every engine call (the use-case is an atomic coordination act at a point in time). Tests / callers needing time-elapsed semantics call the engines individually with different `now` values.
+   599→  * `weighted` queue discipline requires a caller-supplied seeded `RandomSource` for true weighted-random selection; absent that, the engine deterministically picks the heaviest entry (ties by insertion order) — the documented round-robin-within-weight-classes degenerate.
+   600→  * Matching-tie tie-break is `resourceId` lexicographic ASC (the determinism anchor); queue-discipline ties (priority, deadline, weighted-fallback) are broken by `enqueuedAt` ASC.
+   601→- Verification: `cd /home/z/my-project && bunx tsc --noEmit 2>&1 | grep "coordination"` → empty ✓. `bunx tsc --noEmit 2>&1 | grep -v "skills/" | head` → empty ✓.
+   602→
+   603→---
+   604→Task ID: M6
+   605→Agent: lead (orchestrator)
+   606→Task: Milestone 6 — Coordination Kernel (Operations Exchange). The universal coordination engine that sits between planning and execution. Marketplace is ONE strategy on top, not the kernel itself (ADR-0015).
+   607→
+   608→Work Log:
+   609→- Canonical primitives (additive, ADR-0010-compliant): added 14 coordination primitives to shared-kernel — Offer, Bid, Claim, Reservation, Commitment, Assignment, Agreement, Contract, Transfer, Delegation, Queue, Escalation, Allocation, Match — each with branded IDs + status types. Total canonical language now 33 primitives.
+   610→- Coordination module (kernel/coordination/): 11-state deterministic lifecycle (Created→Published→Matched→Reserved→Committed→Assigned→Accepted→Executing→Completed→Released→Cancelled); 25 typed event payloads; 8 engine PORTs (MatchingEngine, NegotiationEngine, ReservationEngine, CommitmentEngine, AssignmentEngine, QueueEngine, TransferEngine, EscalationEngine) + in-memory implementations; 8 protocol-extension PORTs (MatchingStrategy, NegotiationRulesProvider, QueuePolicyProvider, ReservationPolicyProvider, EscalationPolicyProvider, OptimizationObjectiveProvider, CapabilityRanking, AvailabilityModel); coordinate-work spine use-case (Demand→match→reserve+confirm→commit→assign); optimization registry.
+   611→- v1 API: kernel/api/v1/coordination.ts exports the full surface.
+   612→- ADR-0015: coordination kernel is not a marketplace — marketplace is one strategy using Offers+Bids+Matching; direct assignment, fixed schedules, regulatory workflows are equally first-class.
+   613→- Demo Exchange: extended kernel-demo to run the full coordination spine (Demand A → Capability X → Resource R → matching → reservation → commitment → assignment → acceptance). All steps succeed; assignment reaches "accepted" status.
+   614→- Control Plane: added Exchange Explorer tab (11th tab) to the Control Plane client. Shows the coordination spine step trace, outcome badge, matched resource/score, reservation/commitment IDs, assignment card, and the 8-engine summary with the marketplace-is-one-strategy note.
+   615→- Verification: tsc exit 0, lint passes. Agent Browser: Exchange tab renders with coordination spine, assigned outcome, match/reserve/commit/assign/accept steps, all 8 engines, marketplace note. 11 tabs total. No errors. (Note: dev server requires 8GB NODE_OPTIONS — the full kernel-demo loads 17 modules at render time, which stresses Turbopack memory. Warming with curl before browser navigation stabilizes it.)
+   616→
+   617→Stage Summary:
+   618→- Milestone 6 complete. OpsOS now has a universal coordination engine — the economy of work. It coordinates WHO performs work across any industry (cleaning, mobility, healthcare, waste, security, delivery, construction, manufacturing, agriculture) without knowing what that industry is. The 8 engines + 14 primitives + protocol extensions let protocols register their own matching strategies, negotiation rules, queue policies, escalation policies, and optimization objectives. The marketplace — when built — will be one protocol-layer concern on top, not a kernel concern. Next milestones: M6A (Cleaning Domain Model), M6B (Cleaning Protocol), M7 (Eks-Clean Application).
+   619→

@@ -43,6 +43,7 @@ import {
   Workflow,
   Zap,
   ArrowLeftRight,
+  MapPin,
 } from "lucide-react";
 import type { KernelDemoResult } from "@/lib/kernel-demo";
 
@@ -56,6 +57,7 @@ type TabId =
   | "projections"
   | "registries"
   | "exchange"
+  | "resources"
   | "observability"
   | "architecture";
 
@@ -93,6 +95,7 @@ function layerColor(layer: string): string {
     case "Surface": return "bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-500/20";
     case "Control": return "bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border-indigo-500/20";
     case "Coordination": return "bg-lime-500/10 text-lime-700 dark:text-lime-400 border-lime-500/20";
+    case "Resource": return "bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 border-cyan-500/20";
     default: return "bg-muted text-muted-foreground border-border";
   }
 }
@@ -627,6 +630,115 @@ function ExchangeTab({ demo }: { demo: KernelDemoResult }) {
   );
 }
 
+function ResourcesTab({ demo }: { demo: KernelDemoResult }) {
+  const rk = demo.resourceKernel;
+  return (
+    <div className="space-y-3">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <MapPin className="size-4" /> Resource Registry
+          </CardTitle>
+          <CardDescription>
+            Universal resource concepts — state, availability, capacity, location, calendar,
+            skills, certification, twin, maintenance, quality. The coordination kernel queries
+            "give me resources capable of X" (ADR-0016).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {/* Query result */}
+          <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-3">
+            <div className="text-xs font-medium text-muted-foreground mb-2">
+              findCapable(capabilityType: <span className="font-mono text-foreground">{rk.queryCapabilityType}</span>)
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              {rk.capableResults.length} resource(s) matched · ranked by availability → certification → capacity → confidence
+            </div>
+          </div>
+
+          {/* Resource cards */}
+          {rk.resources.map((r) => {
+            const isCapable = rk.capableResults.some((c) => c.id === r.id);
+            return (
+              <div key={r.id} className={`rounded-lg border p-3 space-y-2 ${isCapable ? "border-cyan-500/30" : "border-muted"}`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-sm">{r.displayName}</span>
+                    <span className="font-mono text-[10px] text-muted-foreground">{r.id}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    {isCapable && (
+                      <Badge variant="outline" className="text-[9px] border-cyan-500/40 text-cyan-700 dark:text-cyan-400">
+                        capable
+                      </Badge>
+                    )}
+                    <Badge variant="outline" className={`text-[9px] ${r.operationalState === "idle" ? "border-emerald-500/30 text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"}`}>
+                      {r.operationalState}
+                    </Badge>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px]">
+                  <div>
+                    <div className="text-muted-foreground">health</div>
+                    <div className="font-mono tabular-nums">{(r.healthScore * 100).toFixed(0)}%</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">reliability</div>
+                    <div className="font-mono tabular-nums">{(r.reliabilityScore * 100).toFixed(0)}%</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">capacity</div>
+                    <div className="font-mono tabular-nums">{r.capacityRemaining}/{r.capacityMax}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">certs</div>
+                    <div className="font-mono tabular-nums">{r.certificationCount}</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                  {r.location && <span><span className="text-muted-foreground">location:</span> <span className="font-mono text-foreground">{r.location}</span></span>}
+                  {r.certified !== undefined && (
+                    <span>certified: <span className={r.certified ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}>{String(r.certified)}</span></span>
+                  )}
+                  {r.confidence !== undefined && <span>confidence: <span className="font-mono tabular-nums">{(r.confidence * 100).toFixed(0)}%</span></span>}
+                  {r.matchScore !== undefined && <span>score: <span className="font-mono tabular-nums">{r.matchScore.toFixed(2)}</span></span>}
+                </div>
+                {/* Twin indicator */}
+                <div className="flex items-center gap-1.5 text-[10px] pt-1 border-t">
+                  <Badge variant="outline" className="text-[9px] font-mono border-violet-500/20 text-violet-700 dark:text-violet-400">
+                    twin
+                  </Badge>
+                  <span className="text-muted-foreground">updated at <span className="font-mono">{r.twinUpdatedAt}</span></span>
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Engine summary */}
+          <div className="rounded-lg border border-muted p-3">
+            <div className="text-xs font-medium text-muted-foreground mb-2">Engines (9)</div>
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                "resource-registry", "availability", "capacity", "location",
+                "calendar", "skills", "twin", "maintenance", "quality",
+              ].map((e) => (
+                <Badge key={e} variant="outline" className="text-[9px] font-mono border-cyan-500/20 text-cyan-700 dark:text-cyan-400">
+                  {e}
+                </Badge>
+              ))}
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-2">
+              Every resource has a digital twin (current state, history, predictions, telemetry).
+              Location is an abstraction — not GPS — so mobility uses roads, cleaning uses buildings,
+              healthcare uses hospital wings through the same interface.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 function ObservabilityTab({ demo }: { demo: KernelDemoResult }) {
   const obs = demo.platformSnapshot?.observability;
   return (
@@ -737,6 +849,7 @@ const TABS: readonly TabDef[] = [
   { id: "projections", label: "Projections", icon: Layers },
   { id: "registries", label: "Registries", icon: Boxes },
   { id: "exchange", label: "Exchange", icon: ArrowLeftRight },
+  { id: "resources", label: "Resources", icon: MapPin },
   { id: "observability", label: "Observability", icon: Activity },
   { id: "architecture", label: "Architecture", icon: Grid3x3 },
 ];
@@ -802,6 +915,7 @@ export function ControlPlaneClient({ demo }: { demo: KernelDemoResult }) {
         {activeTab === "projections" && <ProjectionsTab demo={demo} />}
         {activeTab === "registries" && <RegistriesTab demo={demo} />}
         {activeTab === "exchange" && <ExchangeTab demo={demo} />}
+        {activeTab === "resources" && <ResourcesTab demo={demo} />}
         {activeTab === "observability" && <ObservabilityTab demo={demo} />}
         {activeTab === "architecture" && <ArchitectureTab demo={demo} />}
       </main>

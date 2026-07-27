@@ -84,6 +84,19 @@ import {
   InMemoryAssignmentEngine,
 } from "@kernel/coordination";
 import type { CoordinateWorkResult } from "@kernel/coordination";
+import {
+  InMemoryResourceRegistry,
+  InMemoryAvailabilityEngine,
+  InMemoryCapacityTracker,
+  InMemorySkillRegistry,
+  InMemoryTwinManager,
+  InMemoryLocationResolver,
+  InMemoryResourceCalendar,
+  InMemoryMaintenanceTracker,
+  InMemoryQualityMetrics,
+  FindCapableResourcesUseCase,
+} from "@kernel/resource-kernel";
+import type { CapableResource } from "@kernel/resource-kernel";
 
 // ── Static catalogs (mirror docs/) ──────────────────────────────────────────
 
@@ -111,6 +124,7 @@ export const KERNEL_MODULES: readonly ModuleInfo[] = [
   { name: "application-runtime", layer: "Runtime", dependsOn: "@kernel/api/v1, protocol-sdk", description: "Application Runtime: installs branded, tenant-aware application instances of protocols. One protocol → many apps (ADR-0013)." },
   { name: "control-plane", layer: "Control", dependsOn: "@kernel/api/v1", description: "Platform Control Plane: read-only admin surface. Aggregates a PlatformSnapshot from all registries (ADR-0014)." },
   { name: "coordination", layer: "Coordination", dependsOn: "shared-kernel", description: "Coordination Kernel: matching/negotiation/reservation/commitment/assignment/queue/transfer/escalation engines. Marketplace is one strategy (ADR-0015)." },
+  { name: "resource-kernel", layer: "Resource", dependsOn: "shared-kernel", description: "Resource Kernel: universal resource concepts — state, availability, capacity, location, calendar, skills, twin, maintenance, quality. Coordination queries it (ADR-0016)." },
   { name: "api/v1", layer: "Surface", dependsOn: "all modules (facade)", description: "Frozen versioned public API (ADR-0009). Everything outside the kernel imports from here." },
 ];
 
@@ -319,6 +333,29 @@ export interface DemoCoordination {
   readonly candidateCount: number;
 }
 
+export interface DemoResourceInfo {
+  readonly id: string;
+  readonly resourceType: string;
+  readonly displayName: string;
+  readonly operationalState: string;
+  readonly healthScore: number;
+  readonly reliabilityScore: number;
+  readonly location?: string;
+  readonly certificationCount: number;
+  readonly capacityMax: number;
+  readonly capacityRemaining: number;
+  readonly twinUpdatedAt: number;
+  readonly matchScore?: number;
+  readonly certified?: boolean;
+  readonly confidence?: number;
+}
+
+export interface DemoResourceKernel {
+  readonly resources: readonly DemoResourceInfo[];
+  readonly capableResults: readonly DemoResourceInfo[];
+  readonly queryCapabilityType: string;
+}
+
 export interface KernelDemoResult {
   readonly seed: number;
   readonly baseTime: number;
@@ -332,6 +369,7 @@ export interface KernelDemoResult {
   readonly appRuntime: DemoAppRuntime;
   readonly platformSnapshot: DemoPlatformSnapshot;
   readonly coordination: DemoCoordination;
+  readonly resourceKernel: DemoResourceKernel;
   readonly modules: readonly ModuleInfo[];
   readonly primitives: readonly PrimitiveInfo[];
 }
@@ -856,6 +894,141 @@ export async function runKernelDemo(): Promise<KernelDemoResult> {
     candidateCount: coordResult.matchResult.candidates.length,
   };
 
+  // ── 11. Resource Kernel — register resources + query "capable of X" ──────
+  // ADR-0016: the coordination kernel queries the resource kernel.
+  const resourceRegistry = new InMemoryResourceRegistry();
+  const availabilityEngine = new InMemoryAvailabilityEngine();
+  const capacityTracker = new InMemoryCapacityTracker();
+  const skillRegistry = new InMemorySkillRegistry();
+  const twinManager = new InMemoryTwinManager();
+  const locationResolver = new InMemoryLocationResolver();
+  const calendar = new InMemoryResourceCalendar();
+  const maintenance = new InMemoryMaintenanceTracker();
+  const quality = new InMemoryQualityMetrics();
+
+  // Register a location.
+  const demoLocation = {
+    id: asId<"LocationId">("loc-zone-A"),
+    kind: "zone" as const,
+    label: "Zone A",
+    attributes: {},
+  };
+  locationResolver.register(demoLocation);
+
+  // Register two resources — one capable + certified, one not.
+  const resR1 = asId<"ResourceId">("resource-R1");
+  const resR2 = asId<"ResourceId">("resource-R2");
+
+  for (const rid of [resR1, resR2]) {
+    const isPrimary = rid === resR1;
+    const record = {
+      id: rid,
+      resourceType: "generic",
+      tenantId: asId<"TenantId">("tenant-demo"),
+      displayName: isPrimary ? "Resource R1 (primary)" : "Resource R2 (backup)",
+      capabilities: [asId<"CapabilityId">("cap-X")],
+      location: isPrimary ? demoLocation : undefined,
+      certifications: [],
+      health: {
+        resourceId: rid,
+        operationalState: "idle" as const,
+        maintenanceStatus: "none" as const,
+        healthScore: isPrimary ? 0.95 : 0.80,
+        reliabilityScore: isPrimary ? 0.98 : 0.85,
+        lastKnownAt: coordClock.now(),
+        issues: [],
+      },
+      twin: {
+        id: asId<"TwinId">(`twin:${rid}`),
+        resourceId: rid,
+        modelType: "generic",
+        state: { status: isPrimary ? "ready" : "standby" },
+        updatedAt: coordClock.now(),
+        fidelity: isPrimary ? 0.9 : 0.7,
+        assumptions: [],
+      },
+      costModel: { model: "free" },
+      qualityMetrics: {},
+      attributes: {},
+    };
+    resourceRegistry.register(record);
+    availabilityEngine.setState(rid, "idle", coordClock.now());
+    capacityTracker.setCapacity(rid, isPrimary ? 10 : 5, "task");
+    twinManager.updateState(rid, { status: isPrimary ? "ready" : "standby" }, coordClock.now());
+    quality.recordOutcome(rid, true, coordClock.now());
+    quality.recordOutcome(rid, true, coordClock.now());
+  }
+
+  // Certify R1 for the capability.
+  skillRegistry.registerCertification({
+    id: asId<"CertificationId">("cert-R1-cap-X"),
+    resourceId: resR1,
+    capabilityId: asId<"CapabilityId">("cap-X"),
+    capabilityType: "generic.execute",
+    level: 3,
+    issuer: "opsos-demo",
+    issuedAt: coordClock.now(),
+    status: "active",
+    confidence: 0.92,
+    evidence: {},
+  });
+
+  // Query: "give me resources capable of generic.execute"
+  const findCapable = new FindCapableResourcesUseCase(
+    resourceRegistry, availabilityEngine, capacityTracker, skillRegistry
+  );
+  const capableResults = findCapable.execute({
+    request: {
+      capabilityType: "generic.execute",
+      quantity: { amount: 1, unit: "task" },
+      window: { start: coordClock.now(), end: coordClock.now() + 86_400_000, timezone: "UTC" },
+      constraints: [],
+      now: coordClock.now(),
+    },
+  });
+
+  const allResources = resourceRegistry.list().map((r) => {
+    const capable = capableResults.find((c) => c.resource.id === r.id);
+    const cap = capacityTracker.getCapacity(r.id);
+    return {
+      id: String(r.id),
+      resourceType: r.resourceType,
+      displayName: r.displayName,
+      operationalState: r.health.operationalState,
+      healthScore: r.health.healthScore,
+      reliabilityScore: r.health.reliabilityScore,
+      location: r.location?.label,
+      certificationCount: skillRegistry.getCertifications(r.id).length,
+      capacityMax: cap?.max ?? 0,
+      capacityRemaining: cap?.remaining ?? 0,
+      twinUpdatedAt: r.twin.updatedAt,
+      matchScore: capable?.matchScore,
+      certified: capable?.certified,
+      confidence: capable?.confidence,
+    };
+  });
+
+  const resourceKernelDemo: DemoResourceKernel = {
+    resources: allResources,
+    capableResults: capableResults.map((c) => ({
+      id: String(c.resource.id),
+      resourceType: c.resource.resourceType,
+      displayName: c.resource.displayName,
+      operationalState: c.resource.health.operationalState,
+      healthScore: c.resource.health.healthScore,
+      reliabilityScore: c.resource.health.reliabilityScore,
+      location: c.resource.location?.label,
+      certificationCount: skillRegistry.getCertifications(c.resource.id).length,
+      capacityMax: c.remainingCapacity,
+      capacityRemaining: c.remainingCapacity,
+      twinUpdatedAt: c.resource.twin.updatedAt,
+      matchScore: c.matchScore,
+      certified: c.certified,
+      confidence: c.confidence,
+    })),
+    queryCapabilityType: "generic.execute",
+  };
+
   return {
     seed: SEED,
     baseTime: BASE_TIME,
@@ -890,6 +1063,7 @@ export async function runKernelDemo(): Promise<KernelDemoResult> {
     appRuntime: appRuntimeDemo,
     platformSnapshot,
     coordination: coordinationDemo,
+    resourceKernel: resourceKernelDemo,
     modules: KERNEL_MODULES,
     primitives: CANONICAL_PRIMITIVES,
   };

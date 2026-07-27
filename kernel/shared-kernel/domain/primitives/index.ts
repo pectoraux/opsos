@@ -115,3 +115,21 @@ export type {
   Match,
   MatchStatus,
 } from "./coordination";
+
+// ── Resource primitives (M7 — additive) ─────────────────────────────────────
+export type {
+  Location,
+  Movement,
+  Calendar,
+  CalendarEntry,
+  CalendarEntryType,
+  Certification,
+  CertificationStatus,
+  ResourceHealth,
+  ResourceOperationalState,
+  ResourceIssue,
+  Maintenance,
+  MaintenanceStatus,
+  Telemetry,
+  ResourceRecord,
+} from "./resource";
