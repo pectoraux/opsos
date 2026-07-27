@@ -222,3 +222,33 @@ library. Administrators can inspect every layer (kernel → compiler → protoco
 → applications) without touching code. Mutations are auditable and confirmed.
 The control plane is the primary inspector — all previous inspector views
 become tabs within it.
+
+## ADR-0015 — The Coordination Kernel is not a marketplace
+
+**Status:** Accepted
+**Context:** Work coordination — deciding WHO performs work — is universal
+across industries. An "exchange" or "marketplace" is one coordination strategy
+among many; organizations also assign work directly, use fixed schedules, follow
+regulatory workflows, or use priority queues. If the coordination layer were
+coupled to marketplace semantics, every non-market industry would need to
+workaround it.
+**Decision:** The Coordination Kernel is a universal coordination engine that
+sits between planning (compiler) and execution (runtime). It coordinates WHO
+will perform work; it never performs work itself. It introduces 14 canonical
+primitives (Offer, Bid, Claim, Reservation, Commitment, Assignment, Agreement,
+Contract, Transfer, Delegation, Queue, Escalation, Allocation, Match) and 8
+engines (matching, negotiation, reservation, commitment, assignment, queue,
+transfer, escalation). Marketplace is ONE strategy implemented ON TOP of the
+coordination kernel (using Offers + Bids + Matching), not the kernel itself.
+Direct assignment, fixed schedules, and regulatory workflows are equally
+first-class — they use Commitments + Assignments + Queues directly without
+Offers/Bids. Protocols register 8 extension kinds (matching strategies,
+negotiation rules, queue policies, reservation policies, escalation policies,
+optimization objectives, capability ranking, availability models); the kernel
+orchestrates. The coordination kernel is deterministic: identical (events,
+resources, capabilities, policies, clock, config) → identical assignments.
+**Consequences:** OpsOS coordinates any operational work in any industry
+without knowing what that industry is. A cleaning protocol, mobility protocol,
+and healthcare protocol all flow through the same engines. The marketplace —
+when built — is a protocol-layer concern, not a kernel concern. The
+coordination kernel is the heart of OpsOS: the economy of work.

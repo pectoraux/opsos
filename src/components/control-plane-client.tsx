@@ -42,6 +42,7 @@ import {
   Shield,
   Workflow,
   Zap,
+  ArrowLeftRight,
 } from "lucide-react";
 import type { KernelDemoResult } from "@/lib/kernel-demo";
 
@@ -54,6 +55,7 @@ type TabId =
   | "events"
   | "projections"
   | "registries"
+  | "exchange"
   | "observability"
   | "architecture";
 
@@ -90,6 +92,7 @@ function layerColor(layer: string): string {
     case "Runtime": return "bg-pink-500/10 text-pink-700 dark:text-pink-400 border-pink-500/20";
     case "Surface": return "bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-500/20";
     case "Control": return "bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border-indigo-500/20";
+    case "Coordination": return "bg-lime-500/10 text-lime-700 dark:text-lime-400 border-lime-500/20";
     default: return "bg-muted text-muted-foreground border-border";
   }
 }
@@ -515,6 +518,115 @@ function RegistriesTab({ demo }: { demo: KernelDemoResult }) {
   );
 }
 
+function ExchangeTab({ demo }: { demo: KernelDemoResult }) {
+  const c = demo.coordination;
+  return (
+    <div className="space-y-3">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <ArrowLeftRight className="size-4" /> Coordination spine
+          </CardTitle>
+          <CardDescription>
+            Demand A → Capability X → Resource R → Reservation → Commitment → Assignment → Acceptance.
+            The coordination kernel orchestrates WHO performs work; it never performs work itself (ADR-0015).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {/* Outcome badge */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">outcome:</span>
+            <Badge
+              variant="outline"
+              className={
+                c.outcome === "assigned"
+                  ? "border-emerald-500/40 text-emerald-700 dark:text-emerald-400"
+                  : "border-destructive/40 text-destructive"
+              }
+            >
+              {c.outcome}
+            </Badge>
+            <span className="text-xs text-muted-foreground">
+              ({c.candidateCount} candidate{c.candidateCount === 1 ? "" : "s"} matched)
+            </span>
+          </div>
+
+          {/* Spine steps */}
+          <div className="rounded-lg border overflow-hidden">
+            <div className="grid grid-cols-[auto_1fr_auto] gap-x-3 px-3 py-2 bg-muted/50 text-xs font-medium text-muted-foreground">
+              <span>step</span><span>detail</span><span className="text-right">result</span>
+            </div>
+            <Separator />
+            {c.steps.map((s, i) => (
+              <div key={i} className="grid grid-cols-[auto_1fr_auto] gap-x-3 px-3 py-2 text-xs items-center hover:bg-muted/30">
+                <Badge variant="outline" className="text-[9px] font-mono">{s.step}</Badge>
+                <span className="font-mono text-foreground/80">{s.detail}</span>
+                <span className={`font-mono text-right text-[10px] ${s.ok ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
+                  {s.ok ? "ok" : "fail"}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Coordination artifacts */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="rounded-md border p-2.5">
+              <div className="text-[10px] text-muted-foreground">matched resource</div>
+              <div className="font-mono text-xs text-foreground">{c.matchResourceId ?? "—"}</div>
+            </div>
+            <div className="rounded-md border p-2.5">
+              <div className="text-[10px] text-muted-foreground">match score</div>
+              <div className="font-mono text-sm tabular-nums">{c.matchScore ?? "—"}</div>
+            </div>
+            <div className="rounded-md border p-2.5">
+              <div className="text-[10px] text-muted-foreground">reservation</div>
+              <div className="font-mono text-[10px] text-foreground break-all">{c.reservationId ?? "—"}</div>
+            </div>
+            <div className="rounded-md border p-2.5">
+              <div className="text-[10px] text-muted-foreground">commitment</div>
+              <div className="font-mono text-[10px] text-foreground break-all">{c.commitmentId ?? "—"}</div>
+            </div>
+          </div>
+
+          {/* Assignment */}
+          {c.assignmentId && (
+            <div className="rounded-lg border border-lime-500/20 bg-lime-500/5 p-3">
+              <div className="flex items-center gap-2 mb-1">
+                <Badge variant="outline" className="border-lime-500/40 text-lime-700 dark:text-lime-400 font-mono">
+                  assignment
+                </Badge>
+                <span className="font-mono text-xs text-foreground">{c.assignmentId}</span>
+              </div>
+              <div className="text-[11px] text-muted-foreground">
+                status: <span className="font-mono text-foreground">{c.assignmentStatus}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Engine summary */}
+          <div className="rounded-lg border border-muted p-3">
+            <div className="text-xs font-medium text-muted-foreground mb-2">Engines (8)</div>
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                "matching", "negotiation", "reservation", "commitment",
+                "assignment", "queue", "transfer", "escalation",
+              ].map((e) => (
+                <Badge key={e} variant="outline" className="text-[9px] font-mono border-lime-500/20 text-lime-700 dark:text-lime-400">
+                  {e}
+                </Badge>
+              ))}
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-2">
+              Marketplace is ONE strategy on top of the coordination kernel — using Offers + Bids + Matching.
+              Direct assignment, fixed schedules, and regulatory workflows are equally first-class.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 function ObservabilityTab({ demo }: { demo: KernelDemoResult }) {
   const obs = demo.platformSnapshot?.observability;
   return (
@@ -624,6 +736,7 @@ const TABS: readonly TabDef[] = [
   { id: "events", label: "Events", icon: Database },
   { id: "projections", label: "Projections", icon: Layers },
   { id: "registries", label: "Registries", icon: Boxes },
+  { id: "exchange", label: "Exchange", icon: ArrowLeftRight },
   { id: "observability", label: "Observability", icon: Activity },
   { id: "architecture", label: "Architecture", icon: Grid3x3 },
 ];
@@ -688,6 +801,7 @@ export function ControlPlaneClient({ demo }: { demo: KernelDemoResult }) {
         {activeTab === "events" && <EventsTab demo={demo} />}
         {activeTab === "projections" && <ProjectionsTab demo={demo} />}
         {activeTab === "registries" && <RegistriesTab demo={demo} />}
+        {activeTab === "exchange" && <ExchangeTab demo={demo} />}
         {activeTab === "observability" && <ObservabilityTab demo={demo} />}
         {activeTab === "architecture" && <ArchitectureTab demo={demo} />}
       </main>

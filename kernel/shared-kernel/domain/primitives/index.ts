@@ -81,3 +81,37 @@ export type {
 } from "./observation";
 
 export type { Twin } from "./twin";
+
+// ── Coordination primitives (M6 — additive) ─────────────────────────────────
+export type {
+  Offer,
+  OfferStatus,
+  Bid,
+  BidStatus,
+  Claim,
+  ClaimStatus,
+  Reservation,
+  ReservationStatus,
+  Commitment,
+  CommitmentStatus,
+  Assignment,
+  AssignmentStatus,
+  Agreement,
+  AgreementStatus,
+  Contract,
+  ContractStatus,
+  Transfer,
+  TransferStatus,
+  Delegation,
+  DelegationStatus,
+  Queue,
+  QueueEntry,
+  QueueDiscipline,
+  Escalation,
+  EscalationTrigger,
+  EscalationStatus,
+  Allocation,
+  AllocationStatus,
+  Match,
+  MatchStatus,
+} from "./coordination";

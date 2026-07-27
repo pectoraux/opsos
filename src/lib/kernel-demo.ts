@@ -76,6 +76,14 @@ import type {
   ApplicationLifecycleState,
   Application as AppRecord,
 } from "@kernel/application-runtime";
+import {
+  CoordinateWorkUseCase,
+  InMemoryMatchingEngine,
+  InMemoryReservationEngine,
+  InMemoryCommitmentEngine,
+  InMemoryAssignmentEngine,
+} from "@kernel/coordination";
+import type { CoordinateWorkResult } from "@kernel/coordination";
 
 // ── Static catalogs (mirror docs/) ──────────────────────────────────────────
 
@@ -102,6 +110,7 @@ export const KERNEL_MODULES: readonly ModuleInfo[] = [
   { name: "protocol-sdk", layer: "SDK", dependsOn: "@kernel/api/v1", description: "Protocol SDK: defineProtocol(), manifest validation, lifecycle manager, 14 contribution registries, DSL. Protocols describe, never execute (ADR-0012)." },
   { name: "application-runtime", layer: "Runtime", dependsOn: "@kernel/api/v1, protocol-sdk", description: "Application Runtime: installs branded, tenant-aware application instances of protocols. One protocol → many apps (ADR-0013)." },
   { name: "control-plane", layer: "Control", dependsOn: "@kernel/api/v1", description: "Platform Control Plane: read-only admin surface. Aggregates a PlatformSnapshot from all registries (ADR-0014)." },
+  { name: "coordination", layer: "Coordination", dependsOn: "shared-kernel", description: "Coordination Kernel: matching/negotiation/reservation/commitment/assignment/queue/transfer/escalation engines. Marketplace is one strategy (ADR-0015)." },
   { name: "api/v1", layer: "Surface", dependsOn: "all modules (facade)", description: "Frozen versioned public API (ADR-0009). Everything outside the kernel imports from here." },
 ];
 
@@ -292,6 +301,24 @@ export interface DemoPlatformSnapshot {
   };
 }
 
+export interface DemoCoordinationStep {
+  readonly step: string;
+  readonly detail: string;
+  readonly ok: boolean;
+}
+
+export interface DemoCoordination {
+  readonly outcome: string;
+  readonly steps: readonly DemoCoordinationStep[];
+  readonly matchResourceId?: string;
+  readonly matchScore?: number;
+  readonly reservationId?: string;
+  readonly commitmentId?: string;
+  readonly assignmentId?: string;
+  readonly assignmentStatus?: string;
+  readonly candidateCount: number;
+}
+
 export interface KernelDemoResult {
   readonly seed: number;
   readonly baseTime: number;
@@ -304,6 +331,7 @@ export interface KernelDemoResult {
   readonly protocolSdk: DemoProtocolSdk;
   readonly appRuntime: DemoAppRuntime;
   readonly platformSnapshot: DemoPlatformSnapshot;
+  readonly coordination: DemoCoordination;
   readonly modules: readonly ModuleInfo[];
   readonly primitives: readonly PrimitiveInfo[];
 }
@@ -755,6 +783,79 @@ export async function runKernelDemo(): Promise<KernelDemoResult> {
     },
   };
 
+  // ── 10. Coordination Kernel — Demo Exchange ──────────────────────────────
+  // ADR-0015: universal coordination. Demand A → Capability X → Resource R →
+  // Assignment → Acceptance → Completion. No industry terms.
+  const coordClock = new FixedRuntimeClock(BASE_TIME + 40_000);
+  const matchingEngine = new InMemoryMatchingEngine();
+  const reservationEngine = new InMemoryReservationEngine();
+  const commitmentEngine = new InMemoryCommitmentEngine();
+  const assignmentEngine = new InMemoryAssignmentEngine();
+  const coordinateWork = new CoordinateWorkUseCase(
+    matchingEngine, reservationEngine, commitmentEngine, assignmentEngine
+  );
+
+  const demoDemand = {
+    id: asId<"DemandId">("demand-A"),
+    intentId: asId<"IntentId">("intent-coord-demo"),
+    resourceType: "generic.execute",
+    quantity: { amount: 1, unit: "task" },
+    constraints: [],
+    temporalWindow: { start: coordClock.now(), end: coordClock.now() + 86_400_000, timezone: "UTC" },
+    priority: { level: 5, label: "normal" },
+  };
+  const demoResource = {
+    id: asId<"ResourceId">("resource-R"),
+    resourceType: "generic",
+    capabilities: [asId<"CapabilityId">("cap-X")],
+    attributes: {},
+    availability: { windows: [], exclusions: [] },
+    capacity: { max: 10, unit: "task" },
+    tenantId: asId<"TenantId">("tenant-demo"),
+  };
+  const demoCapability = {
+    id: asId<"CapabilityId">("cap-X"),
+    capabilityType: "generic.execute",
+    providerId: asId<"ResourceId">("resource-R"),
+    parametersSchema: { ref: "generic.execute.params", version: 1 },
+    constraints: [],
+  };
+
+  const coordResult: CoordinateWorkResult = coordinateWork.execute({
+    demand: demoDemand,
+    resources: [demoResource],
+    capabilities: [demoCapability],
+    matchPolicies: [],
+    taskId: asId<"TaskId">("task-coord-1"),
+    tenantId: asId<"TenantId">("tenant-demo"),
+    reservationTtlMs: 60_000,
+    correlationId: "coord-demo",
+    provenance: { sourceEventIds: [] },
+    now: coordClock.now(),
+  });
+
+  // Accept the assignment (simulating the resource accepting the work).
+  let acceptedAssignment;
+  if (coordResult.assignment) {
+    acceptedAssignment = assignmentEngine.accept(coordResult.assignment, coordClock.now());
+  }
+
+  const coordinationDemo: DemoCoordination = {
+    outcome: coordResult.outcome,
+    steps: coordResult.diagnostics.map((d, i) => ({
+      step: ["match", "reserve", "commit", "assign"][i] ?? `step-${i}`,
+      detail: d,
+      ok: true,
+    })).concat(acceptedAssignment ? [{ step: "accept", detail: `assignment ${acceptedAssignment.id} → accepted`, ok: true }] : []),
+    matchResourceId: coordResult.match?.resourceId ? String(coordResult.match.resourceId) : undefined,
+    matchScore: coordResult.match?.score,
+    reservationId: coordResult.reservation?.id ? String(coordResult.reservation.id) : undefined,
+    commitmentId: coordResult.commitment?.id ? String(coordResult.commitment.id) : undefined,
+    assignmentId: acceptedAssignment?.id ? String(acceptedAssignment.id) : undefined,
+    assignmentStatus: acceptedAssignment?.status,
+    candidateCount: coordResult.matchResult.candidates.length,
+  };
+
   return {
     seed: SEED,
     baseTime: BASE_TIME,
@@ -788,6 +889,7 @@ export async function runKernelDemo(): Promise<KernelDemoResult> {
     protocolSdk: protocolSdkDemo,
     appRuntime: appRuntimeDemo,
     platformSnapshot,
+    coordination: coordinationDemo,
     modules: KERNEL_MODULES,
     primitives: CANONICAL_PRIMITIVES,
   };

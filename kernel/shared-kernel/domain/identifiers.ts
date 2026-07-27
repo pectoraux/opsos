@@ -32,6 +32,22 @@ export type ExecutionId = Brand<string, "ExecutionId">;
 export type ObservationId = Brand<string, "ObservationId">;
 export type TwinId = Brand<string, "TwinId">;
 
+// ── Coordination primitives (M6 — additive, ADR-0010-compliant) ─────────────
+export type OfferId = Brand<string, "OfferId">;
+export type BidId = Brand<string, "BidId">;
+export type ClaimId = Brand<string, "ClaimId">;
+export type ReservationId = Brand<string, "ReservationId">;
+export type CommitmentId = Brand<string, "CommitmentId">;
+export type AssignmentId = Brand<string, "AssignmentId">;
+export type AgreementId = Brand<string, "AgreementId">;
+export type ContractId = Brand<string, "ContractId">;
+export type TransferId = Brand<string, "TransferId">;
+export type DelegationId = Brand<string, "DelegationId">;
+export type QueueId = Brand<string, "QueueId">;
+export type EscalationId = Brand<string, "EscalationId">;
+export type AllocationId = Brand<string, "AllocationId">;
+export type MatchId = Brand<string, "MatchId">;
+
 // ── Identity & tenancy IDs ──────────────────────────────────────────────────
 export type UserId = Brand<string, "UserId">;
 export type PrincipalId = Brand<string, "PrincipalId">;
