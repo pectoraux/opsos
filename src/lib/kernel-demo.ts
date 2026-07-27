@@ -131,6 +131,17 @@ import {
   REFERENCE_SCENARIOS,
 } from "@kernel/conformance";
 import type { SuiteResult, ConformanceResult } from "@kernel/conformance";
+import {
+  createIntelligenceFramework,
+  buildIntelligenceGraph,
+} from "@kernel/intelligence";
+import type {
+  Explanation,
+  Recommendation,
+  Prediction,
+  Anomaly,
+  LearningSignal,
+} from "@kernel/intelligence";
 
 // ── Static catalogs (mirror docs/) ──────────────────────────────────────────
 
@@ -163,6 +174,7 @@ export const KERNEL_MODULES: readonly ModuleInfo[] = [
   { name: "domain-modeling", layer: "Domain", dependsOn: "shared-kernel, knowledge-kernel", description: "Domain Modeling Framework: semantic layer — entity types, relationships, state machines, measurements, constraints. Domain ≠ Protocol (ADR-0018)." },
   { name: "composition", layer: "Packaging", dependsOn: "shared-kernel, protocol-sdk, domain-modeling", description: "Composition & Operational Package System: turns protocol source into immutable .opspkg. Apps install packages (ADR-0019)." },
   { name: "conformance", layer: "Conformance", dependsOn: "shared-kernel", description: "Kernel Conformance & Simulation Framework: 25 generic scenarios validating kernel neutrality. Every protocol must pass (ADR-0020)." },
+  { name: "intelligence", layer: "Intelligence", dependsOn: "shared-kernel", description: "Operational Intelligence Framework: observes, explains, predicts, recommends. Never performs work. AI providers implement contracts (ADR-0021)." },
   { name: "api/v1", layer: "Surface", dependsOn: "all modules (facade)", description: "Frozen versioned public API (ADR-0009). Everything outside the kernel imports from here." },
 ];
 
@@ -493,6 +505,17 @@ export interface DemoConformance {
   readonly scenarios: readonly DemoScenarioResult[];
 }
 
+export interface DemoIntelligence {
+  readonly graphNodeCount: number;
+  readonly graphEdgeCount: number;
+  readonly explanation: { readonly kind: string; readonly rationale: string; readonly confidence: number; readonly evidenceCount: number; readonly alternativeCount: number };
+  readonly recommendations: readonly { readonly category: string; readonly action: string; readonly confidence: number; readonly impact: string }[];
+  readonly predictions: readonly { readonly metric: string; readonly value: number; readonly confidence: number; readonly method: string }[];
+  readonly anomalies: readonly { readonly kind: string; readonly severity: string; readonly description: string }[];
+  readonly learningSignals: number;
+  readonly aiContracts: readonly string[];
+}
+
 export interface KernelDemoResult {
   readonly seed: number;
   readonly baseTime: number;
@@ -511,6 +534,7 @@ export interface KernelDemoResult {
   readonly domainModeling: DemoDomainModeling;
   readonly composition: DemoComposition;
   readonly conformance: DemoConformance;
+  readonly intelligence: DemoIntelligence;
   readonly modules: readonly ModuleInfo[];
   readonly primitives: readonly PrimitiveInfo[];
 }
@@ -1564,6 +1588,85 @@ export async function runKernelDemo(): Promise<KernelDemoResult> {
     })),
   };
 
+  // ── 16. Intelligence — observe, explain, predict, recommend ──────────────
+  // ADR-0021: intelligence never performs work; never modifies state.
+  const intel = createIntelligenceFramework();
+
+  // Populate the operational graph directly.
+  intel.graph.addNode({ id: "resource-R1", kind: "resource", label: "Resource R1", attributes: {} });
+  intel.graph.addNode({ id: "resource-R2", kind: "resource", label: "Resource R2", attributes: {} });
+  intel.graph.addNode({ id: "cap-X", kind: "capability", label: "Capability X", attributes: {} });
+  intel.graph.addNode({ id: "ki-proc-generic-execute", kind: "knowledge", label: "Generic Execution Procedure", attributes: {} });
+  intel.graph.addNode({ id: "task-coord-1", kind: "work", label: "Coordination Task", attributes: {} });
+  intel.graph.addNode({ id: "exec-demo", kind: "execution", label: "Demo Execution", attributes: {} });
+  intel.graph.addNode({ id: "org-eks-group", kind: "organization", label: "Eks Group", attributes: {} });
+  intel.graph.addNode({ id: "evt-1", kind: "event", label: "OrganizationCreated", attributes: {} });
+  intel.graph.addEdge({ from: "resource-R1", to: "cap-X", kind: "assigned-to" });
+  intel.graph.addEdge({ from: "cap-X", to: "ki-proc-generic-execute", kind: "references" });
+  intel.graph.addEdge({ from: "task-coord-1", to: "resource-R1", kind: "assigned-to" });
+  intel.graph.addEdge({ from: "task-coord-1", to: "cap-X", kind: "depends-on" });
+  intel.graph.addEdge({ from: "exec-demo", to: "task-coord-1", kind: "produced" });
+  intel.graph.addEdge({ from: "org-eks-group", to: "resource-R1", kind: "depends-on" });
+  intel.graph.addEdge({ from: "evt-1", to: "org-eks-group", kind: "caused" });
+
+  // Explain a compiler decision.
+  const explanation = intel.explanation.explain("compiler-decision", "task", "task-coord-1");
+
+  // Generate recommendations.
+  const recommendations = intel.recommendation.recommend();
+
+  // Predict metrics.
+  const durationPrediction = intel.prediction.predict("execution-duration", { taskId: "task-coord-1" });
+  const queuePrediction = intel.prediction.predict("queue-growth", { queueId: "demo-queue" });
+  const utilizationPrediction = intel.prediction.predict("resource-utilization", { resourceId: "resource-R1" });
+
+  // Detect anomalies.
+  const anomalies = intel.anomaly.detect();
+
+  // Record a learning signal.
+  intel.learning.record({
+    id: "ls-1",
+    subjectKind: "execution",
+    subjectId: "exec-demo",
+    observedOutcome: { status: "completed", durationMs: 1500 },
+    expectedOutcome: { status: "completed", durationMs: 1000 },
+    confidence: 0.85,
+    source: "conformance-simulation",
+    timestamp: coordClock.now(),
+    metrics: { durationMs: 1500, retryCount: 0 },
+  });
+
+  const graphStats = intel.graph.stats();
+  const intelligenceDemo: DemoIntelligence = {
+    graphNodeCount: graphStats.nodeCount,
+    graphEdgeCount: graphStats.edgeCount,
+    explanation: {
+      kind: explanation.kind,
+      rationale: explanation.rationale,
+      confidence: explanation.confidence,
+      evidenceCount: explanation.evidence.length,
+      alternativeCount: explanation.alternativePaths.length,
+    },
+    recommendations: recommendations.slice(0, 5).map((r) => ({
+      category: r.category,
+      action: r.proposedAction,
+      confidence: r.confidence,
+      impact: r.impact,
+    })),
+    predictions: [
+      { metric: durationPrediction.metric, value: durationPrediction.predictedValue, confidence: durationPrediction.confidence, method: durationPrediction.method },
+      { metric: queuePrediction.metric, value: queuePrediction.predictedValue, confidence: queuePrediction.confidence, method: queuePrediction.method },
+      { metric: utilizationPrediction.metric, value: utilizationPrediction.predictedValue, confidence: utilizationPrediction.confidence, method: utilizationPrediction.method },
+    ],
+    anomalies: anomalies.slice(0, 5).map((a) => ({
+      kind: a.kind,
+      severity: a.severity,
+      description: a.description,
+    })),
+    learningSignals: intel.learning.list().length,
+    aiContracts: ["Reasoner", "Planner", "Predictor", "Recommender", "Optimizer", "Evaluator", "MemoryProvider"],
+  };
+
   return {
     seed: SEED,
     baseTime: BASE_TIME,
@@ -1603,6 +1706,7 @@ export async function runKernelDemo(): Promise<KernelDemoResult> {
     domainModeling: domainModelingDemo,
     composition: compositionDemo,
     conformance: conformanceDemo,
+    intelligence: intelligenceDemo,
     modules: KERNEL_MODULES,
     primitives: CANONICAL_PRIMITIVES,
   };

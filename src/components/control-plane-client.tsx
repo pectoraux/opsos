@@ -48,6 +48,7 @@ import {
   Boxes as BoxesIcon,
   Package as PackageIcon,
   FlaskConical,
+  Brain as BrainIcon,
 } from "lucide-react";
 import type { KernelDemoResult } from "@/lib/kernel-demo";
 
@@ -66,6 +67,7 @@ type TabId =
   | "domains"
   | "packages"
   | "simulation"
+  | "intelligence"
   | "observability"
   | "architecture";
 
@@ -108,6 +110,7 @@ function layerColor(layer: string): string {
     case "Domain": return "bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/20";
     case "Packaging": return "bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/20";
     case "Conformance": return "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20";
+    case "Intelligence": return "bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/20";
     default: return "bg-muted text-muted-foreground border-border";
   }
 }
@@ -1179,6 +1182,131 @@ function SimulationTab({ demo }: { demo: KernelDemoResult }) {
   );
 }
 
+function IntelligenceTab({ demo }: { demo: KernelDemoResult }) {
+  const i = demo.intelligence;
+  return (
+    <div className="space-y-3">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <BrainIcon className="size-4" /> Operational Intelligence
+          </CardTitle>
+          <CardDescription>
+            Sits ACROSS the kernel — observes, explains, predicts, recommends.
+            Never performs work. Never modifies state. AI providers implement
+            contracts; the kernel owns what intelligence means (ADR-0021).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Intelligence graph stats */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="rounded-lg border p-3">
+              <div className="text-[10px] text-muted-foreground">graph nodes</div>
+              <div className="font-mono text-lg tabular-nums">{i.graphNodeCount}</div>
+            </div>
+            <div className="rounded-lg border p-3">
+              <div className="text-[10px] text-muted-foreground">graph edges</div>
+              <div className="font-mono text-lg tabular-nums">{i.graphEdgeCount}</div>
+            </div>
+            <div className="rounded-lg border p-3">
+              <div className="text-[10px] text-muted-foreground">learning signals</div>
+              <div className="font-mono text-lg tabular-nums">{i.learningSignals}</div>
+            </div>
+            <div className="rounded-lg border p-3">
+              <div className="text-[10px] text-muted-foreground">AI contracts</div>
+              <div className="font-mono text-lg tabular-nums">{i.aiContracts.length}</div>
+            </div>
+          </div>
+
+          {/* Explanation */}
+          <div className="space-y-1.5">
+            <div className="text-xs font-medium text-muted-foreground">Explanation</div>
+            <div className="rounded-lg border p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-[9px] font-mono border-orange-500/30 text-orange-700 dark:text-orange-400">{i.explanation.kind}</Badge>
+                <span className="text-[11px] text-muted-foreground">confidence: <span className="font-mono tabular-nums">{(i.explanation.confidence * 100).toFixed(0)}%</span></span>
+              </div>
+              <p className="text-xs text-foreground/80">{i.explanation.rationale}</p>
+              <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                <span>evidence: <span className="font-mono tabular-nums">{i.explanation.evidenceCount}</span></span>
+                <span>alternatives: <span className="font-mono tabular-nums">{i.explanation.alternativeCount}</span></span>
+              </div>
+            </div>
+          </div>
+
+          {/* Recommendations */}
+          <div className="space-y-1.5">
+            <div className="text-xs font-medium text-muted-foreground">Recommendations (advisory only)</div>
+            {i.recommendations.length > 0 ? (
+              <div className="space-y-1">
+                {i.recommendations.map((r, idx) => (
+                  <div key={idx} className="flex items-center gap-2 text-xs rounded-md border px-2.5 py-1.5">
+                    <Badge variant="outline" className="text-[9px] font-mono border-orange-500/20 text-orange-700 dark:text-orange-400">{r.category}</Badge>
+                    <span className="text-foreground/80 flex-1 truncate">{r.action}</span>
+                    <Badge variant="outline" className={`text-[9px] ${r.impact === "high" ? "border-emerald-500/30 text-emerald-700 dark:text-emerald-400" : r.impact === "medium" ? "border-amber-500/30 text-amber-700 dark:text-amber-400" : "text-muted-foreground"}`}>{r.impact}</Badge>
+                    <span className="text-[10px] text-muted-foreground tabular-nums">{(r.confidence * 100).toFixed(0)}%</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-[11px] text-muted-foreground">No recommendations.</div>
+            )}
+          </div>
+
+          {/* Predictions */}
+          <div className="space-y-1.5">
+            <div className="text-xs font-medium text-muted-foreground">Predictions (deterministic mock — no ML)</div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {i.predictions.map((p, idx) => (
+                <div key={idx} className="rounded-md border p-2.5">
+                  <div className="text-[10px] text-muted-foreground">{p.metric}</div>
+                  <div className="font-mono text-sm tabular-nums">{p.value.toFixed(2)}</div>
+                  <div className="text-[10px] text-muted-foreground">conf: <span className="font-mono tabular-nums">{(p.confidence * 100).toFixed(0)}%</span></div>
+                  <div className="text-[9px] text-muted-foreground font-mono">{p.method}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Anomalies */}
+          <div className="space-y-1.5">
+            <div className="text-xs font-medium text-muted-foreground">Anomalies detected</div>
+            {i.anomalies.length > 0 ? (
+              <div className="space-y-1">
+                {i.anomalies.map((a, idx) => (
+                  <div key={idx} className="flex items-center gap-2 text-xs rounded-md border px-2.5 py-1.5">
+                    <Badge variant="outline" className={`text-[9px] font-mono ${a.severity === "critical" ? "border-destructive/30 text-destructive" : a.severity === "warn" ? "border-amber-500/30 text-amber-700 dark:text-amber-400" : "text-muted-foreground"}`}>{a.severity}</Badge>
+                    <span className="font-mono text-[10px] text-muted-foreground">{a.kind}</span>
+                    <span className="text-foreground/80 flex-1 truncate">{a.description}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-[11px] text-muted-foreground">No anomalies detected.</div>
+            )}
+          </div>
+
+          {/* AI contracts */}
+          <div className="rounded-lg border border-muted p-3">
+            <div className="text-xs font-medium text-muted-foreground mb-2">AI Integration Contracts (interfaces only)</div>
+            <div className="flex flex-wrap gap-1.5">
+              {i.aiContracts.map((c) => (
+                <Badge key={c} variant="outline" className="text-[9px] font-mono border-orange-500/20 text-orange-700 dark:text-orange-400">
+                  {c}
+                </Badge>
+              ))}
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-2">
+              Today GPT, tomorrow a domain planner or RL system — none change the kernel.
+              The kernel owns WHAT intelligence means; AI providers supply HOW it's produced.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 function ObservabilityTab({ demo }: { demo: KernelDemoResult }) {
   const obs = demo.platformSnapshot?.observability;
   return (
@@ -1294,6 +1422,7 @@ const TABS: readonly TabDef[] = [
   { id: "domains", label: "Domains", icon: BoxesIcon },
   { id: "packages", label: "Packages", icon: PackageIcon },
   { id: "simulation", label: "Simulation", icon: FlaskConical },
+  { id: "intelligence", label: "Intelligence", icon: BrainIcon },
   { id: "observability", label: "Observability", icon: Activity },
   { id: "architecture", label: "Architecture", icon: Grid3x3 },
 ];
@@ -1364,6 +1493,7 @@ export function ControlPlaneClient({ demo }: { demo: KernelDemoResult }) {
         {activeTab === "domains" && <DomainsTab demo={demo} />}
         {activeTab === "packages" && <PackagesTab demo={demo} />}
         {activeTab === "simulation" && <SimulationTab demo={demo} />}
+        {activeTab === "intelligence" && <IntelligenceTab demo={demo} />}
         {activeTab === "observability" && <ObservabilityTab demo={demo} />}
         {activeTab === "architecture" && <ArchitectureTab demo={demo} />}
       </main>

@@ -394,3 +394,31 @@ before it can be packaged or installed.
 The first real domain becomes a validation of the platform rather than the place
 where the platform is still being discovered. The simulation framework becomes the
 foundation for a future AI explainability layer — every decision includes provenance.
+
+## ADR-0021 — Intelligence observes, explains, predicts, recommends; never performs work
+
+**Status:** Accepted
+**Context:** AI shouldn't become another subsystem that protocols call directly.
+If the kernel coupled to a specific AI technology (GPT, RL, domain-specific
+planner), changing AI providers would require kernel changes. The kernel needs
+a universal way to observe, explain, predict, and recommend across everything
+built so far — independent of any AI implementation.
+**Decision:** The Operational Intelligence Framework sits ACROSS the kernel
+(not beside it). It introduces: an IntelligenceGraph connecting Events, Resources,
+Knowledge, Domains, Capabilities, Policies, Work, Executions, Outcomes, and
+Organizations; an ExplanationEngine (every kernel decision is explainable with
+rationale, evidence, provenance, confidence, assumptions, alternative paths);
+a RecommendationEngine (advisory only — optimization, risk reduction, knowledge
+gaps, capability gaps); a PredictionEngine (deterministic mock — no ML);
+an AnomalyDetector (unusual sequences, policy violations, degradation, loops,
+orphaned work); and a LearningSignal primitive (the kernel stores signals but
+never trains models). AI integration is via contracts only: Reasoner, Planner,
+Predictor, Recommender, Optimizer, Evaluator, MemoryProvider — providers
+implement these; the kernel never calls AI directly. Intelligence NEVER performs
+work. Intelligence NEVER modifies state. It only observes, explains, predicts,
+and recommends.
+**Consequences:** The kernel is independent of any AI technology. Today GPT;
+tomorrow a domain planner or RL system — none change the kernel. The kernel
+owns WHAT intelligence means; AI providers supply HOW it's produced. Every
+future protocol inherits a complete, explainable intelligence framework
+without introducing any industry-specific AI into the kernel.
