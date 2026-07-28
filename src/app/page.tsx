@@ -336,6 +336,12 @@ function renderProtocols(d: KernelDemoResult): string {
       ${stat("Compiler Extensions", fmtNum(sdk.compilerExtensionCount))}
     </div>
     <div class="space-y-3">${protocolCards}</div>
+    <div class="flex flex-wrap gap-2">
+      <button onclick="protocolAction('validate','opsos.protocol.demo')" class="px-3 py-1.5 rounded-md text-xs font-medium border border-blue-500/30 text-blue-700 hover:bg-blue-500/10 transition-colors">Validate Protocol</button>
+      <button onclick="protocolAction('disable','opsos.protocol.demo')" class="px-3 py-1.5 rounded-md text-xs font-medium border border-amber-500/30 text-amber-700 hover:bg-amber-500/10 transition-colors">Disable Protocol</button>
+      <button onclick="protocolAction('enable','opsos.protocol.demo')" class="px-3 py-1.5 rounded-md text-xs font-medium border border-emerald-500/30 text-emerald-700 hover:bg-emerald-500/10 transition-colors">Enable Protocol</button>
+      <button onclick="protocolAction('uninstall','opsos.protocol.demo')" class="px-3 py-1.5 rounded-md text-xs font-medium border border-red-500/30 text-red-700 hover:bg-red-500/10 transition-colors">Uninstall Protocol</button>
+    </div>
     ${card({
       title: "Lifecycle Trace",
       subtitle: "Protocol state machine transitions",
@@ -440,6 +446,12 @@ function renderApplications(d: KernelDemoResult): string {
       body: `<div class="flex flex-wrap items-center gap-2">${installPipeline}</div>`,
     })}
     <div class="space-y-3">${appCards}</div>
+    <div class="flex flex-wrap gap-2">
+      <button onclick="appAction('activate','eks-clean-demo')" class="px-3 py-1.5 rounded-md text-xs font-medium border border-emerald-500/30 text-emerald-700 hover:bg-emerald-500/10 transition-colors">Activate App</button>
+      <button onclick="appAction('suspend','eks-clean-demo')" class="px-3 py-1.5 rounded-md text-xs font-medium border border-amber-500/30 text-amber-700 hover:bg-amber-500/10 transition-colors">Suspend App</button>
+      <button onclick="appAction('archive','eks-clean-demo')" class="px-3 py-1.5 rounded-md text-xs font-medium border border-orange-500/30 text-orange-700 hover:bg-orange-500/10 transition-colors">Archive App</button>
+      <button onclick="appAction('remove','eks-clean-demo')" class="px-3 py-1.5 rounded-md text-xs font-medium border border-red-500/30 text-red-700 hover:bg-red-500/10 transition-colors">Remove App</button>
+    </div>
     ${card({
       title: "Resolved Configuration",
       subtitle: "Merged config after precedence resolution",
@@ -980,6 +992,7 @@ function renderPackages(d: KernelDemoResult): string {
         ${stat("Digest", mono(esc(c.digest)))}
       </div>`,
     })}
+    <button onclick="compilePackage()" class="px-4 py-2 rounded-md text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition-colors">▶ Compile & Install Package</button>
     ${card({
       title: "Composition Pipeline",
       subtitle: "6-stage pipeline turning protocol source into an immutable artifact",
@@ -1036,6 +1049,7 @@ function renderSimulation(d: KernelDemoResult): string {
           ${kv("Pass Rate", `<span class="tabular-nums">${esc(fmtPct(c.passed / c.totalScenarios))}</span>`)}
         </div>`,
     })}
+    <button onclick="runConformance()" class="px-4 py-2 rounded-md text-sm font-medium bg-green-600 text-white hover:bg-green-700 transition-colors">▶ Run Conformance Suite</button>
     ${card({
       title: "Validation Categories",
       subtitle: "Coverage across the kernel surface",
@@ -1168,6 +1182,11 @@ function renderGovernance(d: KernelDemoResult): string {
 
   return `<div class="space-y-4">
     ${sectionTitle("⚖️ Platform Governance", "Platform Governance &amp; Evolution (ADR-0022)")}
+    <div class="flex flex-wrap gap-2">
+      <button onclick="checkGovernance()" class="px-3 py-1.5 rounded-md text-xs font-medium border border-blue-500/30 text-blue-700 hover:bg-blue-500/10 transition-colors">Check Compatibility</button>
+      <button onclick="planMigration('1.0.0','1.2.0')" class="px-3 py-1.5 rounded-md text-xs font-medium border border-purple-500/30 text-purple-700 hover:bg-purple-500/10 transition-colors">Plan Migration 1.0.0→1.2.0</button>
+      <button onclick="validateEcosystem()" class="px-3 py-1.5 rounded-md text-xs font-medium border border-green-500/30 text-green-700 hover:bg-green-500/10 transition-colors">Validate Ecosystem Package</button>
+    </div>
     ${card({
       title: "Versions",
       subtitle: "Versioned artifacts under governance",
@@ -1408,7 +1427,84 @@ function switchTab(id){
 }
 `;
 
-// ── Page (server component) ────────────────────────────────────────────────
+// ── Action script (API calls + toast) ──────────────────────────────────────
+
+const ACTION_SCRIPT = `
+async function apiAction(endpoint, body, successMsg) {
+  var toast = document.getElementById('action-toast');
+  toast.textContent = 'Processing...';
+  toast.className = 'fixed bottom-4 right-4 z-50 px-4 py-2 rounded-lg text-sm font-medium bg-amber-500 text-white shadow-lg transition-opacity';
+  toast.style.opacity = '1';
+  try {
+    var res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    var data = await res.json();
+    if (data.ok === false || data.error) {
+      toast.textContent = 'Error: ' + (data.error || 'Operation failed');
+      toast.className = 'fixed bottom-4 right-4 z-50 px-4 py-2 rounded-lg text-sm font-medium bg-red-500 text-white shadow-lg';
+    } else {
+      toast.textContent = successMsg || 'Operation completed';
+      toast.className = 'fixed bottom-4 right-4 z-50 px-4 py-2 rounded-lg text-sm font-medium bg-emerald-500 text-white shadow-lg';
+    }
+  } catch (e) {
+    toast.textContent = 'Error: ' + e.message;
+    toast.className = 'fixed bottom-4 right-4 z-50 px-4 py-2 rounded-lg text-sm font-medium bg-red-500 text-white shadow-lg';
+  }
+  setTimeout(function() { toast.style.opacity = '0'; }, 3000);
+}
+
+function confirmAction(msg, endpoint, body, successMsg) {
+  if (confirm(msg)) {
+    apiAction(endpoint, body, successMsg);
+  }
+}
+
+function protocolAction(action, protocolId) {
+  var msgs = {
+    validate: ['Validate protocol ' + protocolId + '?', 'Protocol validated'],
+    install: ['Install protocol ' + protocolId + '?', 'Protocol installed'],
+    enable: ['Enable protocol ' + protocolId + '?', 'Protocol enabled'],
+    disable: ['Disable protocol ' + protocolId + '?', 'Protocol disabled'],
+    uninstall: ['Uninstall protocol ' + protocolId + '? This cannot be undone.', 'Protocol uninstalled'],
+  };
+  var m = msgs[action] || [action + '?', 'Done'];
+  confirmAction(m[0], '/api/protocols/install', { action: action, protocolId: protocolId }, m[1]);
+}
+
+function appAction(action, appId) {
+  var msgs = {
+    activate: ['Activate application ' + appId + '?', 'Application activated'],
+    suspend: ['Suspend application ' + appId + '?', 'Application suspended'],
+    archive: ['Archive application ' + appId + '?', 'Application archived'],
+    remove: ['Remove application ' + appId + '? This cannot be undone.', 'Application removed'],
+  };
+  var m = msgs[action] || [action + '?', 'Done'];
+  confirmAction(m[0], '/api/applications/install', { action: action, applicationId: appId }, m[1]);
+}
+
+function runConformance() {
+  apiAction('/api/conformance/run', null, 'Conformance suite completed — check results');
+}
+
+function compilePackage() {
+  apiAction('/api/packages/compile', null, 'Package compiled and installed');
+}
+
+function validateEcosystem() {
+  apiAction('/api/ecosystem/validate', {}, 'Ecosystem validation completed');
+}
+
+function checkGovernance() {
+  apiAction('/api/governance/check', { action: 'check-compatibility' }, 'Compatibility check completed');
+}
+
+function planMigration(from, to) {
+  apiAction('/api/governance/check', { action: 'plan-migration', fromVersion: from, toVersion: to, type: 'upgrade' }, 'Migration plan created');
+}
+`;
 
 export default function Home() {
   const d = demoData;
@@ -1454,6 +1550,8 @@ export default function Home() {
   </footer>
   <style>${TAB_STYLES}</style>
   <script>${TAB_SCRIPT}</script>
+  <script>${ACTION_SCRIPT}</script>
+  <div id="action-toast" class="fixed bottom-4 right-4 z-50 px-4 py-2 rounded-lg text-sm font-medium shadow-lg transition-opacity" style="opacity:0;pointer-events:none;"></div>
 </div>`;
 
   return <div dangerouslySetInnerHTML={{ __html: html }} />;
