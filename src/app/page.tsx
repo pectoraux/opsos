@@ -452,6 +452,13 @@ function renderApplications(d: KernelDemoResult): string {
       <button onclick="appAction('archive','eks-clean-demo')" class="px-3 py-1.5 rounded-md text-xs font-medium border border-orange-500/30 text-orange-700 hover:bg-orange-500/10 transition-colors">Archive App</button>
       <button onclick="appAction('remove','eks-clean-demo')" class="px-3 py-1.5 rounded-md text-xs font-medium border border-red-500/30 text-red-700 hover:bg-red-500/10 transition-colors">Remove App</button>
     </div>
+    <div class="rounded-lg border border-teal-500/20 bg-teal-500/5 p-3 space-y-2">
+      <div class="text-xs font-medium">🚀 Launch Applications</div>
+      <div class="flex flex-wrap gap-2">
+        <a href="/apps/eks-clean" class="px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors" style="background-color:#0d9488">Open Eks-Clean →</a>
+      </div>
+      <p class="text-[10px] text-muted-foreground">Launches a real running application. Create cleaning jobs, execute the compiler pipeline, assign cleaners, track completion.</p>
+    </div>
     ${card({
       title: "Resolved Configuration",
       subtitle: "Merged config after precedence resolution",
