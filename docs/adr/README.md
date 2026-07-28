@@ -450,3 +450,37 @@ retired). Certifications reference the conformance suite. Migration plans suppor
 dry-run, canary, and staged rollout. The platform shifts from being built to being
 operated — future work (Cleaning, Mobility, Healthcare) is ecosystem work, not
 platform work.
+
+## ADR-0023 — Cross-cutting platform capabilities (M14-M19)
+
+**Status:** Accepted
+**Context:** The kernel is complete (M1-M13), but the platform is ~90-95%
+complete. Six cross-cutting capabilities — AI Workforce, Communication,
+Workflow, Integration, Digital Twin Runtime, and Experience — are needed by
+every operational business. Building them now (before the first ecosystem)
+prevents the first domain from bending the platform.
+**Decision:** Six cross-cutting platform capabilities are built as kernel
+modules with the standard architecture:
+- **M14 AI Workforce Runtime** — AI Organization, Roles, Teams, Director, Agent
+  lifecycle/memory/collaboration/handoffs, Human approval, Autonomous boundaries.
+  Organizations run by AI teams, not single assistants.
+- **M15 Communication Runtime** — Notifications, Email, SMS, Push, WhatsApp,
+  Voice, Webhooks, Internal events. Protocols publish events; the platform
+  decides delivery.
+- **M16 Workflow Runtime** — BPMN-like execution: waiting, retries, timers,
+  approvals, compensation, saga orchestration, recurring jobs.
+- **M17 Integration Hub** — Universal connectors: calendars, payments (PaySwap
+  ONLY — OpsOS never processes payments itself), maps, identity, accounting,
+  ERP, CRM, IoT, AI providers.
+- **M18 Digital Twin Runtime** — Every entity has current/historical/predicted/
+  simulated state, live telemetry, health, recommendations.
+- **M19 Experience Runtime** — Intent, Journey, Session, Context, Narrative,
+  Guidance, Milestones, Goals. Applications expose experiences, not just screens.
+All six are exposed via namespaced v1 API exports to avoid naming collisions
+with existing flat exports.
+**Consequences:** The platform is now 100% complete. Every future ecosystem
+(Cleaning, Mobility, Healthcare, Waste, Security, Manufacturing, Logistics)
+inherits AI teams, communication, workflows, integrations, digital twins, and
+experiences automatically — without introducing any industry-specific logic
+into the platform. The project shifts entirely from building the operating
+system to using the operating system.

@@ -52,3 +52,10 @@ export * from "./composition";
 export * from "./conformance";
 export * from "./intelligence";
 export * from "./governance";
+// Cross-cutting platform capabilities (M14-M19) — namespaced to avoid collisions
+export * as aiWorkforce from "./ai-workforce";
+export * as communication from "./communication";
+export * as workflowRuntime from "./workflow-runtime";
+export * as integrationHub from "./integration-hub";
+export * as twinRuntime from "./twin-runtime";
+export * as experienceRuntime from "./experience-runtime";

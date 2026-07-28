@@ -185,6 +185,12 @@ export const KERNEL_MODULES: readonly ModuleInfo[] = [
   { name: "conformance", layer: "Conformance", dependsOn: "shared-kernel", description: "Kernel Conformance & Simulation Framework: 25 generic scenarios validating kernel neutrality. Every protocol must pass (ADR-0020)." },
   { name: "intelligence", layer: "Intelligence", dependsOn: "shared-kernel", description: "Operational Intelligence Framework: observes, explains, predicts, recommends. Never performs work. AI providers implement contracts (ADR-0021)." },
   { name: "governance", layer: "Governance", dependsOn: "shared-kernel", description: "Platform Governance & Evolution: version compatibility, migration, lifecycle, certification, policies. Governs how the platform evolves (ADR-0022)." },
+  { name: "ai-workforce", layer: "Platform", dependsOn: "shared-kernel", description: "AI Workforce Runtime: AI Org, Roles, Teams, Director, Agent lifecycle/memory/collaboration/handoffs, Human approval, Autonomous boundaries (M14)." },
+  { name: "communication", layer: "Platform", dependsOn: "shared-kernel", description: "Communication Runtime: notifications, email, SMS, push, WhatsApp, voice, webhooks. Protocols publish events; platform decides delivery (M15)." },
+  { name: "workflow-runtime", layer: "Platform", dependsOn: "shared-kernel", description: "Workflow Runtime: BPMN-like execution, waiting, retries, timers, approvals, compensation, saga, recurring jobs (M16)." },
+  { name: "integration-hub", layer: "Platform", dependsOn: "shared-kernel", description: "Integration Hub: universal connectors — calendars, payments (PaySwap only), maps, identity, ERP, CRM, IoT, AI (M17)." },
+  { name: "twin-runtime", layer: "Platform", dependsOn: "shared-kernel", description: "Digital Twin Runtime: current/historical/predicted/simulated state, live telemetry, health, recommendations (M18)." },
+  { name: "experience-runtime", layer: "Platform", dependsOn: "shared-kernel", description: "Experience Runtime: Intent, Journey, Session, Context, Narrative, Guidance, Milestones, Goals. Apps expose experiences (M19)." },
   { name: "api/v1", layer: "Surface", dependsOn: "all modules (facade)", description: "Frozen versioned public API (ADR-0009). Everything outside the kernel imports from here." },
 ];
 
@@ -535,6 +541,15 @@ export interface DemoGovernance {
   readonly lifecycleStates: readonly string[];
 }
 
+export interface DemoPlatform {
+  readonly aiWorkforce: { readonly agentCount: number; readonly teamCount: number; readonly roleCount: number; readonly pendingApprovals: number; readonly handoffs: number; readonly memories: number };
+  readonly communication: { readonly channelCount: number; readonly templateCount: number; readonly recipientCount: number; readonly notificationsDispatched: number; readonly suppressedChannels: number };
+  readonly workflow: { readonly definitionCount: number; readonly instanceCount: number; readonly activeInstances: number; readonly completedInstances: number; readonly timersScheduled: number; readonly recurringJobs: number };
+  readonly integration: { readonly connectorCount: number; readonly capabilityCount: number; readonly webhookEndpoints: number; readonly syncJobs: number; readonly paymentProvider: string };
+  readonly twinRuntime: { readonly twinCount: number; readonly telemetryReadings: number; readonly predictions: number; readonly simulations: number; readonly recommendations: number; readonly healthIssues: number };
+  readonly experience: { readonly sessionCount: number; readonly journeyCount: number; readonly intentCount: number; readonly milestonesTracked: number; readonly goals: number; readonly guidanceGenerated: number };
+}
+
 export interface KernelDemoResult {
   readonly seed: number;
   readonly baseTime: number;
@@ -555,6 +570,7 @@ export interface KernelDemoResult {
   readonly conformance: DemoConformance;
   readonly intelligence: DemoIntelligence;
   readonly governance: DemoGovernance;
+  readonly platform: DemoPlatform;
   readonly modules: readonly ModuleInfo[];
   readonly primitives: readonly PrimitiveInfo[];
 }
@@ -1785,6 +1801,74 @@ export async function runKernelDemo(): Promise<KernelDemoResult> {
     lifecycleStates: ["experimental", "preview", "stable", "deprecated", "retired"],
   };
 
+  // ── 18. Platform Capabilities (M14-M19) — cross-cutting runtimes ────────
+  const platformNow = coordClock.now();
+
+  // M14: AI Workforce — create an agent + team + handoff + approval
+  const { createAIWorkforce } = await import("@kernel/ai-workforce");
+  const workforce = createAIWorkforce();
+  workforce.registry.register({
+    id: "agent-director", name: "AI Director", roleId: "director",
+    organizationId: "org-eks-group", tenantId: "tenant-demo",
+    status: "active", capabilities: ["plan", "delegate"],
+    boundaries: { maxDecisionCost: 1000, requiresApprovalAbove: 500, allowedActions: ["plan", "delegate", "monitor"], forbiddenActions: ["delete"], maxAutonomousDurationMs: 3600000, escalationOnTimeout: true, scope: ["global"] },
+    memoryId: "mem-director", createdAt: platformNow, updatedAt: platformNow,
+  });
+  workforce.memoryStore.record("agent-director", { id: "mem-1", kind: "goal", content: "Optimize operations", confidence: 0.9, timestamp: platformNow });
+  workforce.collaboration.sendMessage("agent-director", "agent-director", "inform", "Self-test message", platformNow);
+  workforce.approval.requestApproval("agent-director", "deploy-change", "Deploy a configuration change", "medium", {}, platformNow);
+
+  // M15: Communication — register a channel + template + send a notification
+  const { createCommunicationRuntime } = await import("@kernel/communication");
+  const comm = createCommunicationRuntime();
+  comm.channels.register({ id: "ch-email", kind: "email", name: "Email Channel", config: {}, status: "active" });
+  comm.templates.register({ id: "tpl-welcome", name: "Welcome", channelKind: "email", subjectTemplate: "Welcome to {{app}}", bodyTemplate: "Hello {{name}}, welcome!", variables: [{ name: "app", required: true }, { name: "name", required: true }], version: 1 });
+  comm.recipients.register({ id: "rcp-1", name: "Demo User", channels: [{ kind: "email", address: "demo@opsos.dev", verified: true }] });
+  comm.engine.send({ id: "notif-1", kind: "transactional", recipientId: "rcp-1", channels: ["ch-email"], subject: "Welcome", body: "Hello!", priority: "normal", status: "pending", createdAt: platformNow }, platformNow);
+
+  // M16: Workflow — register a definition + create an instance
+  const { createWorkflowRuntime } = await import("@kernel/workflow-runtime");
+  const wf = createWorkflowRuntime();
+  wf.registry.registerDefinition({ id: "wf-demo", name: "Demo Workflow", version: 1, steps: [{ id: "s1", name: "Start", type: "task", config: { action: "init" }, next: ["s2"] }, { id: "s2", name: "End", type: "task", config: { action: "finish" }, next: [] }], triggers: [{ kind: "manual", params: {} }], errorHandling: "stop" });
+  wf.registry.createInstance("wf-demo", {}, platformNow);
+  wf.timerRegistry.schedule({ id: "timer-1", workflowInstanceId: "wf-1", stepId: "s1", firesAt: platformNow + 60000, status: "pending" });
+
+  // M17: Integration Hub — register connectors + a PaySwap payment connector
+  const { createIntegrationHub, DemoPaymentConnector } = await import("@kernel/integration-hub");
+  const hub = createIntegrationHub();
+  hub.connectors.register({ id: "conn-cal", kind: "calendar", name: "Calendar", provider: "google-calendar", config: {}, status: "active", capabilities: ["read", "write"] });
+  hub.connectors.register({ id: "conn-pay", kind: "payment", name: "PaySwap", provider: "payswap", config: {}, status: "active", capabilities: ["charge", "refund"] });
+  hub.capabilities.register({ id: "cap-cal-events", connectorId: "conn-cal", kind: "read", resource: "calendar.events" });
+  const payConnector = new DemoPaymentConnector();
+  payConnector.charge({ id: "pay-1", amount: 100, currency: "USD", description: "Demo charge" }, platformNow);
+
+  // M18: Digital Twin Runtime — register a twin + ingest telemetry
+  const { createTwinRuntime } = await import("@kernel/twin-runtime");
+  const twinRT = createTwinRuntime();
+  twinRT.registry.register({ id: "twin-R1", entityId: "resource-R1", entityType: "resource", currentState: { status: "idle", load: 0.3 }, version: 1, updatedAt: platformNow, fidelity: 0.95 });
+  twinRT.telemetry.ingest({ id: "tel-1", entityId: "resource-R1", metric: "cpu", value: 0.35, unit: "ratio", timestamp: platformNow, quality: 0.9 });
+  twinRT.telemetry.ingest({ id: "tel-2", entityId: "resource-R1", metric: "cpu", value: 0.45, unit: "ratio", timestamp: platformNow + 1000, quality: 0.9 });
+  twinRT.health.evaluate("resource-R1", twinRT.telemetry.getReadings("resource-R1"), platformNow);
+  twinRT.predictions.predict("resource-R1", "cpu", 3600000, platformNow);
+  twinRT.simulations.simulate("resource-R1", "peak-load", { growth: { cpu: 0.1 }, horizonMs: 3600000 }, 42, platformNow);
+
+  // M19: Experience Runtime — create a session + journey + intent
+  const { createExperienceRuntime } = await import("@kernel/experience-runtime");
+  const exp = createExperienceRuntime();
+  exp.registry.registerIntent({ id: "intent-1", userId: "user-1", applicationId: "eks-clean-demo", type: "act", target: "execute-task", payload: {}, priority: 5, status: "active", createdAt: platformNow });
+  exp.registry.registerSession({ id: "sess-1", userId: "user-1", applicationId: "eks-clean-demo", status: "active", context: { locale: "en", timezone: "UTC", device: "desktop", accessibility: [], featureFlags: {}, customAttributes: {} }, startedAt: platformNow, lastActivityAt: platformNow });
+  exp.milestones.track("journey-1", "started", platformNow);
+  exp.goals.set({ id: "goal-1", userId: "user-1", applicationId: "eks-clean-demo", type: "efficiency", description: "Reduce task duration by 20%", target: 20, current: 5, unit: "%", status: "active", createdAt: platformNow });
+
+  const platformDemo: DemoPlatform = {
+    aiWorkforce: { agentCount: workforce.registry.list().length, teamCount: 0, roleCount: 5, pendingApprovals: workforce.approval.listPending().length, handoffs: 0, memories: workforce.memoryStore.recall("agent-director").length },
+    communication: { channelCount: comm.channels.list().length, templateCount: comm.templates.list().length, recipientCount: comm.recipients.list().length, notificationsDispatched: 1, suppressedChannels: 0 },
+    workflow: { definitionCount: wf.registry.listDefinitions().length, instanceCount: wf.registry.listInstances().length, activeInstances: wf.registry.listInstances({ status: "running" as any }).length, completedInstances: 0, timersScheduled: 1, recurringJobs: 0 },
+    integration: { connectorCount: hub.connectors.list().length, capabilityCount: hub.capabilities.listByConnector("conn-cal").length + hub.capabilities.listByConnector("conn-pay").length, webhookEndpoints: 0, syncJobs: 0, paymentProvider: "payswap" },
+    twinRuntime: { twinCount: twinRT.registry.list().length, telemetryReadings: twinRT.telemetry.getReadings("resource-R1").length, predictions: twinRT.predictions.listPredictions("resource-R1").length, simulations: twinRT.simulations.listSimulations("resource-R1").length, recommendations: 0, healthIssues: twinRT.health.listIssues("resource-R1").length },
+    experience: { sessionCount: exp.registry.listSessions().length, journeyCount: 0, intentCount: exp.registry.listIntents().length, milestonesTracked: exp.milestones.listMilestones("journey-1").length, goals: exp.goals.listGoals("user-1").length, guidanceGenerated: 0 },
+  };
+
   return {
     seed: SEED,
     baseTime: BASE_TIME,
@@ -1826,6 +1910,7 @@ export async function runKernelDemo(): Promise<KernelDemoResult> {
     conformance: conformanceDemo,
     intelligence: intelligenceDemo,
     governance: governanceDemo,
+    platform: platformDemo,
     modules: KERNEL_MODULES,
     primitives: CANONICAL_PRIMITIVES,
   };

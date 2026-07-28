@@ -50,6 +50,7 @@ import {
   FlaskConical,
   Brain as BrainIcon,
   ShieldCheck,
+  Layers as LayersIcon,
 } from "lucide-react";
 import type { KernelDemoResult } from "@/lib/kernel-demo";
 
@@ -70,6 +71,7 @@ type TabId =
   | "simulation"
   | "intelligence"
   | "governance"
+  | "platform"
   | "observability"
   | "architecture";
 
@@ -114,6 +116,7 @@ function layerColor(layer: string): string {
     case "Conformance": return "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20";
     case "Intelligence": return "bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/20";
     case "Governance": return "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20";
+    case "Platform": return "bg-violet-500/10 text-violet-700 dark:text-violet-400 border-violet-500/20";
     default: return "bg-muted text-muted-foreground border-border";
   }
 }
@@ -1424,6 +1427,92 @@ function GovernanceTab({ demo }: { demo: KernelDemoResult }) {
   );
 }
 
+function PlatformTab({ demo }: { demo: KernelDemoResult }) {
+  const p = demo.platform;
+  const cards = [
+    { title: "AI Workforce", icon: "🤖", color: "border-violet-500/20", items: [
+      { label: "agents", value: p.aiWorkforce.agentCount },
+      { label: "roles", value: p.aiWorkforce.roleCount },
+      { label: "pending approvals", value: p.aiWorkforce.pendingApprovals },
+      { label: "memories", value: p.aiWorkforce.memories },
+    ]},
+    { title: "Communication", icon: "📡", color: "border-violet-500/20", items: [
+      { label: "channels", value: p.communication.channelCount },
+      { label: "templates", value: p.communication.templateCount },
+      { label: "recipients", value: p.communication.recipientCount },
+      { label: "dispatched", value: p.communication.notificationsDispatched },
+    ]},
+    { title: "Workflow Runtime", icon: "⚙️", color: "border-violet-500/20", items: [
+      { label: "definitions", value: p.workflow.definitionCount },
+      { label: "instances", value: p.workflow.instanceCount },
+      { label: "timers", value: p.workflow.timersScheduled },
+      { label: "recurring jobs", value: p.workflow.recurringJobs },
+    ]},
+    { title: "Integration Hub", icon: "🔌", color: "border-violet-500/20", items: [
+      { label: "connectors", value: p.integration.connectorCount },
+      { label: "capabilities", value: p.integration.capabilityCount },
+      { label: "webhooks", value: p.integration.webhookEndpoints },
+      { label: "payments", value: p.integration.paymentProvider },
+    ]},
+    { title: "Digital Twin Runtime", icon: "📊", color: "border-violet-500/20", items: [
+      { label: "twins", value: p.twinRuntime.twinCount },
+      { label: "telemetry", value: p.twinRuntime.telemetryReadings },
+      { label: "predictions", value: p.twinRuntime.predictions },
+      { label: "simulations", value: p.twinRuntime.simulations },
+    ]},
+    { title: "Experience Runtime", icon: "✨", color: "border-violet-500/20", items: [
+      { label: "sessions", value: p.experience.sessionCount },
+      { label: "intents", value: p.experience.intentCount },
+      { label: "milestones", value: p.experience.milestonesTracked },
+      { label: "goals", value: p.experience.goals },
+    ]},
+  ];
+  return (
+    <div className="space-y-3">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <LayersIcon className="size-4" /> Cross-Cutting Platform Capabilities
+          </CardTitle>
+          <CardDescription>
+            Six universal runtimes inherited by every ecosystem — AI Workforce,
+            Communication, Workflow, Integration, Digital Twin, Experience (ADR-0023).
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {cards.map((c) => (
+              <div key={c.title} className={`rounded-lg border ${c.color} p-4 space-y-2`}>
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">{c.icon}</span>
+                  <span className="text-sm font-medium">{c.title}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {c.items.map((item) => (
+                    <div key={item.label}>
+                      <div className="text-[10px] text-muted-foreground">{item.label}</div>
+                      <div className="font-mono text-sm tabular-nums">{String(item.value)}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="rounded-lg border border-muted p-3 mt-3">
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              These six runtimes prevent the first ecosystem from bending the platform.
+              Every future industry — Cleaning, Mobility, Healthcare, Waste, Security,
+              Manufacturing, Logistics — inherits AI teams, communication, workflows,
+              integrations, digital twins, and experiences automatically. Payments delegate
+              to PaySwap exclusively; OpsOS never processes payments itself.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 function ObservabilityTab({ demo }: { demo: KernelDemoResult }) {
   const obs = demo.platformSnapshot?.observability;
   return (
@@ -1541,6 +1630,7 @@ const TABS: readonly TabDef[] = [
   { id: "simulation", label: "Simulation", icon: FlaskConical },
   { id: "intelligence", label: "Intelligence", icon: BrainIcon },
   { id: "governance", label: "Governance", icon: ShieldCheck },
+  { id: "platform", label: "Platform", icon: LayersIcon },
   { id: "observability", label: "Observability", icon: Activity },
   { id: "architecture", label: "Architecture", icon: Grid3x3 },
 ];
@@ -1613,6 +1703,7 @@ export function ControlPlaneClient({ demo }: { demo: KernelDemoResult }) {
         {activeTab === "simulation" && <SimulationTab demo={demo} />}
         {activeTab === "intelligence" && <IntelligenceTab demo={demo} />}
         {activeTab === "governance" && <GovernanceTab demo={demo} />}
+        {activeTab === "platform" && <PlatformTab demo={demo} />}
         {activeTab === "observability" && <ObservabilityTab demo={demo} />}
         {activeTab === "architecture" && <ArchitectureTab demo={demo} />}
       </main>
