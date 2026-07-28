@@ -59,3 +59,5 @@ export * as workflowRuntime from "./workflow-runtime";
 export * as integrationHub from "./integration-hub";
 export * as twinRuntime from "./twin-runtime";
 export * as experienceRuntime from "./experience-runtime";
+// Platform freeze gate (PF-1) — ecosystem conformance suite
+export * from "./ecosystem-conformance";

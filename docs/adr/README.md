@@ -484,3 +484,25 @@ inherits AI teams, communication, workflows, integrations, digital twins, and
 experiences automatically — without introducing any industry-specific logic
 into the platform. The project shifts entirely from building the operating
 system to using the operating system.
+
+## ADR-0024 — Ecosystem packages must pass conformance before installation
+
+**Status:** Accepted
+**Context:** If ecosystems can bypass the platform, they will. An ecosystem
+package that imports kernel internals, skips registration, or fails the kernel
+conformance suite undermines the entire OS model. The platform needs a GATE
+that rejects non-conformant packages before installation.
+**Decision:** The Ecosystem Conformance Suite is the gate. Every .opspkg must
+pass 20 checks before installation: SDK-only imports (no kernel internals),
+valid manifest, compatible kernel version, passes kernel conformance simulation,
+registers domain ontology + capabilities + intent types + workflows + policies +
+knowledge + permissions (required), and optionally registers AI workforce +
+experiences + communication templates + integrations + telemetry + digital twins
++ governance rules. If ANY required check fails, the package is REJECTED. No
+ecosystem bypasses the platform. The conformance engine is deterministic — same
+package summary always produces the same result.
+**Consequences:** The platform boundary is enforced, not advisory. Ecosystems
+can only interact through the Protocol SDK and v1 API. Adding a new industry is
+genuinely "install a package" — not "modify the OS." If Cleaning, Logistics, or
+Mobility needs to change the kernel to pass conformance, that signals the
+missing concept belongs in the kernel, not the ecosystem.

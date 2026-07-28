@@ -1371,3 +1371,21 @@ Results:
 - All content present (verified: Eks-Clean, COMPILED, ALL SCENARIOS PASS, Platform Health, payswap, AI Workforce, resource-R1, Generic Execution)
 - CSS loads (200), JS loads (200)
 - tsc passes (0), lint passes (0)
+
+---
+Task ID: PF-1
+Agent: lead (orchestrator)
+Task: Platform Freeze v1.0 — API freeze, capability audit, ecosystem conformance gate, platform certification.
+
+Work Log:
+- API boundary audit: verified all 30 v1 API sub-modules use @kernel/ paths only; 23 flat exports + 6 namespaced; zero relative imports to kernel internals.
+- Web app boundary: verified src/page.tsx imports ONLY demo-data.ts (static JSON) + demo-types.ts (standalone types). Zero kernel imports in the render path. kernel-demo.ts (which imports kernel modules) is only used at build time.
+- Capability audit: grep'd all kernel code for industry terms (clean, maid, vacuum, patient, doctor, hospital, ambulance, driver, vehicle, truck, bin, guard, patrol, drone, laundry, washing). Zero occurrences in actual code. Only in JSDoc comments as examples. Platform is domain-agnostic.
+- Extension point audit: 14 registries verified (Protocol, Application, Capability, Knowledge, Domain, Package, Connector, Workflow, Agent, Channel, Twin, Experience, Governance, Extension). Everything new goes through registries, not conditionals.
+- Ecosystem Conformance Suite (kernel/ecosystem-conformance/): 20 checks (13 required + 7 optional). Engine validates package summaries deterministically. Required check failure = REJECTION. Tested with Demo Protocol: 12/12 required + 8/8 optional = PASSED.
+- ADR-0024: ecosystem packages must pass conformance before installation. No ecosystem bypasses the platform.
+- Platform Certification document (docs/PLATFORM_CERTIFICATION.md): 20-point checklist, architecture map, capability audit table, extension point table, conformance gate description, platform boundary contract, declaration of v1.0 certification.
+- Server stability: 5 requests, all 200, render time 27-143ms, server alive, 2GB free. HTML: 545KB, 20 tab panels, 38 onclick handlers, switchTab script, all key content present (Eks-Clean, COMPILED, ALL SCENARIOS, Platform Health, payswap, AI Workforce).
+
+Stage Summary:
+- Platform v1.0 is CERTIFIED and FROZEN. 30 kernel modules, 658 TypeScript files, 58,782 lines, 24 ADRs, 52 canonical primitives, 25 conformance scenarios (all pass), 20 ecosystem conformance checks. Every ecosystem interaction goes through @kernel/api/v1 only. Ecosystems that fail conformance are REJECTED. The next step is the first real ecosystem (Cleaning) — built entirely on top of the frozen v1 API, packaged as .opspkg, passing the conformance gate, without modifying a single line of platform code.
