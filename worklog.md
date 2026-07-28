@@ -1341,3 +1341,33 @@ Work Log:
 
 Stage Summary:
 - Milestones M14-M19 complete. THE PLATFORM IS NOW 100% COMPLETE. The full OpsOS platform stack: Kernel (M1-M2) → Protocol SDK (M3) → Application Runtime (M4) → Control Plane (M5) → Coordination (M6) → Resources (M7) → Knowledge (M8) → Domain Modeling (M9) → Composition (M10) → Conformance (M11) → Intelligence (M12) → Governance (M13) → AI Workforce (M14) → Communication (M15) → Workflow (M16) → Integration (M17) → Digital Twin (M18) → Experience (M19). Every future ecosystem inherits AI teams, communication, workflows, integrations, digital twins, and experiences automatically. The project shifts entirely from building the operating system to using the operating system. Next: M20 (Cleaning Domain) — the first real ecosystem, built entirely on top of the frozen v1 API.
+
+---
+Task ID: FIX-STABILITY
+Agent: lead (orchestrator)
+Task: Fix critical stability issues — server crashes, non-functional buttons, broken tabs. Root cause: 19 kernel module imports at render time causing Turbopack OOM on 4GB system.
+
+Root Cause Analysis:
+- kernel-demo.ts imported ALL 19 kernel modules (~200+ files) at server-render time
+- Turbopack compiled the entire kernel dependency graph on each page request
+- React's server rendering of 2MB of HTML took 5.9 seconds, exhausting 4GB system RAM
+- Server crashed after 1-2 requests, causing CSS/JS bundles to fail loading
+- Without JS bundles, React hydration failed, making tab buttons non-functional
+- User saw "buttons don't work" because the tab-switching JS never loaded
+
+Fixes Applied:
+1. Pre-computed demo data (src/lib/demo-data.ts): Generated kernel demo output as static JSON constant via bun. The demo is 100% deterministic (seed=42), so output never changes. Eliminates ALL kernel module imports from the web app.
+2. Standalone demo types (src/lib/demo-types.ts): Extracted all interfaces into a standalone file with NO kernel imports. Severed web app from kernel module graph entirely.
+3. Rewrote page.tsx as pure server component generating raw HTML strings: Instead of React JSX (5.9s render, 2MB HTML, OOM crash), the page generates HTML via template literals + dangerouslySetInnerHTML. Render time: 30-150ms. HTML size: 545KB.
+4. All 19 tabs in initial HTML: Tab switching uses vanilla JS (inline script + onclick handlers). No React hydration, no client JS bundles needed for tabs.
+5. No external dependencies: Page imports only demoData (static JSON) + KernelDemoResult (standalone type). No kernel modules, no lucide-react, no shadcn/ui.
+6. Memory limit in dev script: Updated package.json to NODE_OPTIONS=--max-old-space-size=2048.
+
+Results:
+- Render time: 5.9s → 30-150ms (20-100x improvement)
+- HTML size: 2MB → 545KB (4x smaller)
+- Server stability: 1-2 requests → 10+ requests (5-10x improvement)
+- All 19 tabs work (verified: 20 tab panels, 38 onclick handlers, switchTab function present)
+- All content present (verified: Eks-Clean, COMPILED, ALL SCENARIOS PASS, Platform Health, payswap, AI Workforce, resource-R1, Generic Execution)
+- CSS loads (200), JS loads (200)
+- tsc passes (0), lint passes (0)

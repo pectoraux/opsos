@@ -52,7 +52,7 @@ import {
   ShieldCheck,
   Layers as LayersIcon,
 } from "lucide-react";
-import type { KernelDemoResult } from "@/lib/kernel-demo";
+import type { KernelDemoResult } from "@/lib/demo-types";
 
 type TabId =
   | "overview"
